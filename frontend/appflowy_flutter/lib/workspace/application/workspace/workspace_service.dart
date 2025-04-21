@@ -1,34 +1,48 @@
 import 'dart:async';
 
+import 'package:appflowy/shared/af_role_pb_extension.dart';
 import 'package:appflowy_backend/dispatch/dispatch.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
+import 'package:appflowy_backend/protobuf/flowy-user/workspace.pb.dart';
 import 'package:appflowy_result/appflowy_result.dart';
+import 'package:fixnum/fixnum.dart' as fixnum;
 
 class WorkspaceService {
-  WorkspaceService({required this.workspaceId});
+  WorkspaceService({required this.workspaceId, required this.userId});
 
   final String workspaceId;
+  final fixnum.Int64 userId;
 
   Future<FlowyResult<ViewPB, FlowyError>> createView({
     required String name,
     required ViewSectionPB viewSection,
-    String? desc,
     int? index,
+    ViewLayoutPB? layout,
+    bool? setAsCurrent,
+    String? viewId,
+    String? extra,
   }) {
     final payload = CreateViewPayloadPB.create()
       ..parentViewId = workspaceId
       ..name = name
-      // only allow document layout for the top-level views
-      ..layout = ViewLayoutPB.Document
+      ..layout = layout ?? ViewLayoutPB.Document
       ..section = viewSection;
-
-    if (desc != null) {
-      payload.desc = desc;
-    }
 
     if (index != null) {
       payload.index = index;
+    }
+
+    if (setAsCurrent != null) {
+      payload.setAsCurrent = setAsCurrent;
+    }
+
+    if (viewId != null) {
+      payload.viewId = viewId;
+    }
+
+    if (extra != null) {
+      payload.extra = extra;
     }
 
     return FolderEventCreateView(payload).send();
@@ -69,5 +83,25 @@ class WorkspaceService {
       ..to = toIndex;
 
     return FolderEventMoveView(payload).send();
+  }
+
+  Future<FlowyResult<WorkspaceUsagePB?, FlowyError>> getWorkspaceUsage() async {
+    final request = WorkspaceMemberIdPB()..uid = userId;
+    final result = await UserEventGetMemberInfo(request).send();
+    final isOwner = result.fold(
+      (member) => member.role.isOwner,
+      (_) => false,
+    );
+
+    if (!isOwner) {
+      return FlowyResult.success(null);
+    }
+
+    final payload = UserWorkspaceIdPB(workspaceId: workspaceId);
+    return UserEventGetWorkspaceUsage(payload).send();
+  }
+
+  Future<FlowyResult<BillingPortalPB, FlowyError>> getBillingPortal() {
+    return UserEventGetBillingPortal().send();
   }
 }

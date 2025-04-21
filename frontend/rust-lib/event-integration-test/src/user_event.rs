@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use bytes::Bytes;
-
 use flowy_folder::entities::{RepeatedViewPB, WorkspacePB};
-use nanoid::nanoid;
 use protobuf::ProtobufError;
 use tokio::sync::broadcast::{channel, Sender};
 use tracing::error;
@@ -18,14 +17,15 @@ use flowy_server::af_cloud::define::{USER_DEVICE_ID, USER_EMAIL, USER_SIGN_IN_UR
 use flowy_server_pub::af_cloud_config::AFCloudConfiguration;
 use flowy_server_pub::AuthenticatorType;
 use flowy_user::entities::{
-  AuthenticatorPB, ChangeWorkspaceIconPB, CloudSettingPB, CreateWorkspacePB, ImportAppFlowyDataPB,
-  OauthSignInPB, RenameWorkspacePB, RepeatedUserWorkspacePB, SignInUrlPB, SignInUrlPayloadPB,
-  SignUpPayloadPB, UpdateCloudConfigPB, UpdateUserProfilePayloadPB, UserProfilePB,
-  UserWorkspaceIdPB, UserWorkspacePB,
+  AuthTypePB, ChangeWorkspaceIconPB, CloudSettingPB, CreateWorkspacePB, ImportAppFlowyDataPB,
+  OauthSignInPB, OpenUserWorkspacePB, RenameWorkspacePB, RepeatedUserWorkspacePB, SignInUrlPB,
+  SignInUrlPayloadPB, SignUpPayloadPB, UpdateCloudConfigPB, UpdateUserProfilePayloadPB,
+  UserProfilePB, UserWorkspaceIdPB, UserWorkspacePB,
 };
 use flowy_user::errors::{FlowyError, FlowyResult};
 use flowy_user::event_map::UserEvent;
-use lib_dispatch::prelude::{af_spawn, AFPluginDispatcher, AFPluginRequest, ToBytes};
+use flowy_user_pub::entities::AuthType;
+use lib_dispatch::prelude::{AFPluginDispatcher, AFPluginRequest, ToBytes};
 
 use crate::event_builder::EventBuilder;
 use crate::EventIntegrationTest;
@@ -65,14 +65,19 @@ impl EventIntegrationTest {
       email,
       name: "appflowy".to_string(),
       password: password.clone(),
-      auth_type: AuthenticatorPB::Local,
+      auth_type: AuthTypePB::Local,
       device_id: uuid::Uuid::new_v4().to_string(),
     }
     .into_bytes()
     .unwrap();
 
     let request = AFPluginRequest::new(UserEvent::SignUp).payload(payload);
-    let user_profile = AFPluginDispatcher::async_send(&self.appflowy_core.dispatcher(), request)
+    let user_profile = self
+      .local_set
+      .run_until(AFPluginDispatcher::async_send(
+        &self.appflowy_core.dispatcher(),
+        request,
+      ))
       .await
       .parse::<UserProfilePB, FlowyError>()
       .unwrap()
@@ -87,22 +92,18 @@ impl EventIntegrationTest {
 
   pub async fn af_cloud_sign_up(&self) -> UserProfilePB {
     let email = unique_email();
-    self.af_cloud_sign_in_with_email(&email).await.unwrap()
-  }
-
-  pub async fn supabase_party_sign_up(&self) -> UserProfilePB {
-    let map = third_party_sign_up_param(Uuid::new_v4().to_string());
-    let payload = OauthSignInPB {
-      map,
-      authenticator: AuthenticatorPB::Supabase,
-    };
-
-    EventBuilder::new(self.clone())
-      .event(UserEvent::OauthSignIn)
-      .payload(payload)
-      .async_send()
-      .await
-      .parse::<UserProfilePB>()
+    match self.af_cloud_sign_in_with_email(&email).await {
+      Ok(profile) => profile,
+      Err(err) => {
+        tracing::warn!(
+          "Failed to sign up with email: {}, error: {}, retrying",
+          email,
+          err
+        );
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        self.af_cloud_sign_in_with_email(&email).await.unwrap()
+      },
+    }
   }
 
   pub async fn sign_out(&self) {
@@ -112,8 +113,8 @@ impl EventIntegrationTest {
       .await;
   }
 
-  pub fn set_auth_type(&self, auth_type: AuthenticatorPB) {
-    *self.authenticator.write() = auth_type;
+  pub fn set_auth_type(&self, auth_type: AuthTypePB) {
+    self.authenticator.store(auth_type as u8, Ordering::Release);
   }
 
   pub async fn init_anon_user(&self) -> UserProfilePB {
@@ -139,7 +140,7 @@ impl EventIntegrationTest {
   pub async fn af_cloud_sign_in_with_email(&self, email: &str) -> FlowyResult<UserProfilePB> {
     let payload = SignInUrlPayloadPB {
       email: email.to_string(),
-      authenticator: AuthenticatorPB::AppFlowyCloud,
+      authenticator: AuthTypePB::Server,
     };
     let sign_in_url = EventBuilder::new(self.clone())
       .event(UserEvent::GenerateSignInURL)
@@ -154,34 +155,7 @@ impl EventIntegrationTest {
     map.insert(USER_DEVICE_ID.to_string(), Uuid::new_v4().to_string());
     let payload = OauthSignInPB {
       map,
-      authenticator: AuthenticatorPB::AppFlowyCloud,
-    };
-
-    let user_profile = EventBuilder::new(self.clone())
-      .event(UserEvent::OauthSignIn)
-      .payload(payload)
-      .async_send()
-      .await
-      .try_parse::<UserProfilePB>()?;
-
-    Ok(user_profile)
-  }
-
-  pub async fn supabase_sign_up_with_uuid(
-    &self,
-    uuid: &str,
-    email: Option<String>,
-  ) -> FlowyResult<UserProfilePB> {
-    let mut map = HashMap::new();
-    map.insert(USER_UUID.to_string(), uuid.to_string());
-    map.insert(USER_DEVICE_ID.to_string(), uuid.to_string());
-    map.insert(
-      USER_EMAIL.to_string(),
-      email.unwrap_or_else(|| format!("{}@appflowy.io", nanoid!(10))),
-    );
-    let payload = OauthSignInPB {
-      map,
-      authenticator: AuthenticatorPB::Supabase,
+      authenticator: AuthTypePB::Server,
     };
 
     let user_profile = EventBuilder::new(self.clone())
@@ -202,6 +176,7 @@ impl EventIntegrationTest {
     let payload = ImportAppFlowyDataPB {
       path,
       import_container_name: name,
+      parent_view_id: None,
     };
     match EventBuilder::new(self.clone())
       .event(UserEvent::ImportAppFlowyDataFolder)
@@ -215,9 +190,10 @@ impl EventIntegrationTest {
     }
   }
 
-  pub async fn create_workspace(&self, name: &str) -> UserWorkspacePB {
+  pub async fn create_workspace(&self, name: &str, auth_type: AuthType) -> UserWorkspacePB {
     let payload = CreateWorkspacePB {
       name: name.to_string(),
+      auth_type: auth_type.into(),
     };
     EventBuilder::new(self.clone())
       .event(UserEvent::CreateWorkspace)
@@ -304,9 +280,10 @@ impl EventIntegrationTest {
       .await;
   }
 
-  pub async fn open_workspace(&self, workspace_id: &str) {
-    let payload = UserWorkspaceIdPB {
+  pub async fn open_workspace(&self, workspace_id: &str, auth_type: AuthTypePB) {
+    let payload = OpenUserWorkspacePB {
       workspace_id: workspace_id.to_string(),
+      auth_type,
     };
     EventBuilder::new(self.clone())
       .event(UserEvent::OpenWorkspace)
@@ -354,7 +331,7 @@ impl TestNotificationSender {
     let (tx, rx) = tokio::sync::mpsc::channel::<T>(10);
     let mut receiver = self.sender.subscribe();
     let ty = ty.into();
-    af_spawn(async move {
+    tokio::spawn(async move {
       // DatabaseNotification::DidUpdateDatabaseSnapshotState
       while let Ok(value) = receiver.recv().await {
         if value.id == id && value.ty == ty {
@@ -378,6 +355,26 @@ impl TestNotificationSender {
     rx
   }
 
+  pub fn subscribe_without_payload(
+    &self,
+    id: &str,
+    ty: impl Into<i32> + Send,
+  ) -> tokio::sync::mpsc::Receiver<()> {
+    let id = id.to_string();
+    let (tx, rx) = tokio::sync::mpsc::channel::<()>(10);
+    let mut receiver = self.sender.subscribe();
+    let ty = ty.into();
+    tokio::spawn(async move {
+      // DatabaseNotification::DidUpdateDatabaseSnapshotState
+      while let Ok(value) = receiver.recv().await {
+        if value.id == id && value.ty == ty {
+          let _ = tx.send(()).await;
+        }
+      }
+    });
+    rx
+  }
+
   pub fn subscribe_with_condition<T, F>(&self, id: &str, when: F) -> tokio::sync::mpsc::Receiver<T>
   where
     T: TryFrom<Bytes, Error = ProtobufError> + Send + 'static,
@@ -386,7 +383,7 @@ impl TestNotificationSender {
     let id = id.to_string();
     let (tx, rx) = tokio::sync::mpsc::channel::<T>(1);
     let mut receiver = self.sender.subscribe();
-    af_spawn(async move {
+    tokio::spawn(async move {
       while let Ok(value) = receiver.recv().await {
         if value.id == id {
           if let Some(payload) = value.payload {
@@ -438,7 +435,7 @@ pub struct SignUpContext {
   pub password: String,
 }
 
-pub async fn user_localhost_af_cloud() {
+pub async fn use_localhost_af_cloud() {
   AuthenticatorType::AppFlowyCloud.write_env();
   let base_url =
     std::env::var("af_cloud_test_base_url").unwrap_or("http://localhost:8000".to_string());
@@ -450,6 +447,8 @@ pub async fn user_localhost_af_cloud() {
     base_url,
     ws_base_url,
     gotrue_url,
+    enable_sync_trace: true,
+    maximum_upload_file_size_in_bytes: None,
   }
   .write_env();
   std::env::set_var("GOTRUE_ADMIN_EMAIL", "admin@example.com");
@@ -461,5 +460,5 @@ pub async fn user_localhost_af_cloud_with_nginx() {
   std::env::set_var("af_cloud_test_base_url", "http://localhost");
   std::env::set_var("af_cloud_test_ws_url", "ws://localhost/ws/v1");
   std::env::set_var("af_cloud_test_gotrue_url", "http://localhost/gotrue");
-  user_localhost_af_cloud().await
+  use_localhost_af_cloud().await
 }

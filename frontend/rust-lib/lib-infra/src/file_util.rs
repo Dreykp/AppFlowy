@@ -4,12 +4,11 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::{fs, io};
-
 use tempfile::tempdir;
 use walkdir::WalkDir;
 use zip::write::FileOptions;
-use zip::ZipArchive;
 use zip::ZipWriter;
+use zip::{CompressionMethod, ZipArchive};
 
 pub fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
   for entry in WalkDir::new(src).into_iter().filter_map(|e| e.ok()) {
@@ -69,48 +68,67 @@ where
 }
 
 pub fn zip_folder(src_path: impl AsRef<Path>, dest_path: &Path) -> io::Result<()> {
-  if !src_path.as_ref().exists() {
-    return Err(io::ErrorKind::NotFound.into());
+  let src_path = src_path.as_ref();
+
+  // Check if source path exists
+  if !src_path.exists() {
+    return Err(io::Error::new(
+      io::ErrorKind::NotFound,
+      "Source path not found",
+    ));
   }
 
-  if src_path.as_ref() == dest_path {
-    return Err(io::ErrorKind::InvalidInput.into());
+  // Check if source and destination paths are the same
+  if src_path == dest_path {
+    return Err(io::Error::new(
+      io::ErrorKind::InvalidInput,
+      "Source and destination paths cannot be the same",
+    ));
   }
 
+  // Create a file at the destination path to write the ZIP file
   let file = File::create(dest_path)?;
   let mut zip = ZipWriter::new(file);
-  let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-  for entry in WalkDir::new(&src_path) {
-    let entry = entry?;
+  // Traverse through the source directory recursively
+  for entry in WalkDir::new(src_path).into_iter().filter_map(|e| e.ok()) {
     let path = entry.path();
-    let name = match path.strip_prefix(&src_path) {
-      Ok(n) => n,
-      Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "Invalid path")),
-    };
+    let name = path
+      .strip_prefix(src_path)
+      .map_err(|_| io::Error::new(io::ErrorKind::Other, "Invalid path"))?;
 
+    // If the entry is a file, add it to the ZIP archive
     if path.is_file() {
-      zip.start_file(
-        name
-          .to_str()
-          .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid file name"))?,
-        options,
+      let file_name = name
+        .to_str()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid file name"))?;
+      zip.start_file::<_, ()>(
+        file_name,
+        FileOptions::default().compression_method(CompressionMethod::Deflated),
       )?;
+
+      // Instead of loading the entire file into memory, use `copy` for efficient writing
       let mut f = File::open(path)?;
       io::copy(&mut f, &mut zip)?;
-    } else if !name.as_os_str().is_empty() {
-      zip.add_directory(
-        name
-          .to_str()
-          .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid directory name"))?,
-        options,
-      )?;
+
+      // If the entry is a directory, add it to the ZIP archive
+    } else if path.is_dir() {
+      let dir_name = name
+        .to_str()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid directory name"))?;
+      if !dir_name.is_empty() {
+        zip.add_directory::<_, ()>(
+          dir_name,
+          FileOptions::default().compression_method(CompressionMethod::Deflated),
+        )?;
+      }
     }
   }
+
+  // Finish the ZIP archive
   zip.finish()?;
   Ok(())
 }
-
 pub fn unzip_and_replace(
   zip_path: impl AsRef<Path>,
   target_folder: &Path,

@@ -1,8 +1,11 @@
 import 'package:appflowy/user/application/user_listener.dart';
+import 'package:appflowy_backend/dispatch/dispatch.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/user_profile.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-user/workspace.pb.dart';
 import 'package:appflowy_result/appflowy_result.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -13,23 +16,31 @@ enum SettingsPage {
   account,
   workspace,
   manageData,
+  shortcuts,
+  ai,
+  plan,
+  billing,
+  sites,
   // OLD
   notifications,
   cloud,
-  shortcuts,
   member,
   featureFlags,
 }
 
 class SettingsDialogBloc
     extends Bloc<SettingsDialogEvent, SettingsDialogState> {
-  SettingsDialogBloc(this.userProfile)
-      : _userListener = UserListener(userProfile: userProfile),
-        super(SettingsDialogState.initial(userProfile)) {
+  SettingsDialogBloc(
+    this.userProfile,
+    this.currentWorkspaceMemberRole, {
+    SettingsPage? initPage,
+  })  : _userListener = UserListener(userProfile: userProfile),
+        super(SettingsDialogState.initial(userProfile, initPage)) {
     _dispatch();
   }
 
   final UserProfilePB userProfile;
+  final AFRolePB? currentWorkspaceMemberRole;
   final UserListener _userListener;
 
   @override
@@ -44,6 +55,14 @@ class SettingsDialogBloc
         await event.when(
           initial: () async {
             _userListener.start(onProfileUpdated: _profileUpdated);
+
+            final isBillingEnabled = await _isBillingEnabled(
+              userProfile,
+              currentWorkspaceMemberRole,
+            );
+            if (isBillingEnabled) {
+              emit(state.copyWith(isBillingEnabled: true));
+            }
           },
           didReceiveUserProfile: (UserProfilePB newUserProfile) {
             emit(state.copyWith(userProfile: newUserProfile));
@@ -65,6 +84,42 @@ class SettingsDialogBloc
       (err) => Log.error(err),
     );
   }
+
+  Future<bool> _isBillingEnabled(
+    UserProfilePB userProfile, [
+    AFRolePB? currentWorkspaceMemberRole,
+  ]) async {
+    if ([
+      AuthTypePB.Local,
+    ].contains(userProfile.workspaceAuthType)) {
+      return false;
+    }
+
+    if (currentWorkspaceMemberRole == null ||
+        currentWorkspaceMemberRole != AFRolePB.Owner) {
+      return false;
+    }
+
+    if (kDebugMode) {
+      return true;
+    }
+
+    final result = await UserEventGetCloudConfig().send();
+    return result.fold(
+      (cloudSetting) {
+        final whiteList = [
+          "https://beta.appflowy.cloud",
+          "https://test.appflowy.cloud",
+        ];
+
+        return whiteList.contains(cloudSetting.serverUrl);
+      },
+      (err) {
+        Log.error("Failed to get cloud config: $err");
+        return false;
+      },
+    );
+  }
 }
 
 @freezed
@@ -81,14 +136,17 @@ class SettingsDialogEvent with _$SettingsDialogEvent {
 class SettingsDialogState with _$SettingsDialogState {
   const factory SettingsDialogState({
     required UserProfilePB userProfile,
-    required FlowyResult<void, String> successOrFailure,
     required SettingsPage page,
+    required bool isBillingEnabled,
   }) = _SettingsDialogState;
 
-  factory SettingsDialogState.initial(UserProfilePB userProfile) =>
+  factory SettingsDialogState.initial(
+    UserProfilePB userProfile,
+    SettingsPage? page,
+  ) =>
       SettingsDialogState(
         userProfile: userProfile,
-        successOrFailure: FlowyResult.success(null),
-        page: SettingsPage.account,
+        page: page ?? SettingsPage.account,
+        isBillingEnabled: false,
       );
 }

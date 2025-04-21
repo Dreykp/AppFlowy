@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/database/card/card_detail/widgets/widgets.dart';
@@ -5,13 +7,12 @@ import 'package:appflowy/mobile/presentation/database/field/mobile_field_bottom_
 import 'package:appflowy/mobile/presentation/widgets/widgets.dart';
 import 'package:appflowy/plugins/database/application/field/field_controller.dart';
 import 'package:appflowy/plugins/database/application/field/field_editor_bloc.dart';
-import 'package:appflowy/plugins/database/domain/field_backend_service.dart';
 import 'package:appflowy/plugins/database/application/field/field_info.dart';
+import 'package:appflowy/plugins/database/domain/field_backend_service.dart';
 import 'package:appflowy/plugins/database/widgets/setting/field_visibility_extension.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -61,7 +62,8 @@ class _QuickEditFieldState extends State<QuickEditField> {
       create: (_) => FieldEditorBloc(
         viewId: widget.viewId,
         fieldController: widget.fieldController,
-        field: widget.fieldInfo.field,
+        fieldInfo: widget.fieldInfo,
+        isNew: false,
       ),
       child: BlocConsumer<FieldEditorBloc, FieldEditorState>(
         listenWhen: (previous, current) =>
@@ -74,7 +76,8 @@ class _QuickEditFieldState extends State<QuickEditField> {
               const VSpace(16),
               OptionTextField(
                 controller: controller,
-                type: state.field.fieldType,
+                isPrimary: state.field.isPrimary,
+                fieldType: state.field.fieldType,
                 onTextChanged: (text) {
                   context
                       .read<FieldEditorBloc>()
@@ -99,7 +102,7 @@ class _QuickEditFieldState extends State<QuickEditField> {
                   context.pop();
                 },
               ),
-              if (!widget.fieldInfo.isPrimary)
+              if (!widget.fieldInfo.isPrimary) ...[
                 FlowyOptionTile.text(
                   showTopBorder: false,
                   text: fieldVisibility.isVisibleState()
@@ -115,7 +118,6 @@ class _QuickEditFieldState extends State<QuickEditField> {
                     }
                   },
                 ),
-              if (!widget.fieldInfo.isPrimary)
                 FlowyOptionTile.text(
                   showTopBorder: false,
                   text: LocaleKeys.grid_field_insertLeft.tr(),
@@ -132,6 +134,7 @@ class _QuickEditFieldState extends State<QuickEditField> {
                     );
                   },
                 ),
+              ],
               FlowyOptionTile.text(
                 showTopBorder: false,
                 text: LocaleKeys.grid_field_insertRight.tr(),

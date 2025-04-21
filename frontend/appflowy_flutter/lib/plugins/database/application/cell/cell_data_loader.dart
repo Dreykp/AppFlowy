@@ -181,3 +181,34 @@ class RelationCellDataParser implements CellDataParser<RelationCellDataPB> {
     }
   }
 }
+
+class TimeCellDataParser implements CellDataParser<TimeCellDataPB> {
+  @override
+  TimeCellDataPB? parserData(List<int> data) {
+    if (data.isEmpty) {
+      return null;
+    }
+    try {
+      return TimeCellDataPB.fromBuffer(data);
+    } catch (e) {
+      Log.error("Failed to parse timer data: $e");
+      return null;
+    }
+  }
+}
+
+class MediaCellDataParser implements CellDataParser<MediaCellDataPB> {
+  @override
+  MediaCellDataPB? parserData(List<int> data) {
+    if (data.isEmpty) {
+      return null;
+    }
+
+    try {
+      return MediaCellDataPB.fromBuffer(data);
+    } catch (e) {
+      Log.error("Failed to parse media cell data: $e");
+      return null;
+    }
+  }
+}

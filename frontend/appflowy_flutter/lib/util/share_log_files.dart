@@ -1,7 +1,8 @@
 import 'dart:io';
 
+import 'package:appflowy/core/helpers/url_launcher.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
-import 'package:appflowy/workspace/presentation/home/toast.dart';
+import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:archive/archive_io.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -23,9 +24,9 @@ Future<void> shareLogFiles(BuildContext? context) async {
 
   if (archiveLogFiles.isEmpty) {
     if (context != null && context.mounted) {
-      showSnackBarMessage(
-        context,
-        LocaleKeys.noLogFiles.tr(),
+      showToastNotification(
+        message: LocaleKeys.noLogFiles.tr(),
+        type: ToastificationType.error,
       );
     }
     return;
@@ -38,20 +39,40 @@ Future<void> shareLogFiles(BuildContext? context) async {
 
   final zip = zipEncoder.encode(archive);
   if (zip == null) {
+    if (context != null && context.mounted) {
+      showToastNotification(
+        message: LocaleKeys.noLogFiles.tr(),
+        type: ToastificationType.error,
+      );
+    }
     return;
   }
 
   // create a zipped appflowy logs file
-  final path = Platform.isAndroid ? '/storage/emulated/0/Download' : dir.path;
-  final zipFile =
-      await File(p.join(path, 'appflowy_logs.zip')).writeAsBytes(zip);
+  try {
+    final tempDirectory = await getTemporaryDirectory();
+    final path = Platform.isAndroid ? tempDirectory.path : dir.path;
+    final zipFile =
+        await File(p.join(path, 'appflowy_logs.zip')).writeAsBytes(zip);
 
-  if (Platform.isIOS) {
-    await Share.shareUri(zipFile.uri);
-  } else {
-    await Share.shareXFiles([XFile(zipFile.path)]);
+    if (Platform.isIOS) {
+      await Share.shareUri(zipFile.uri);
+      // delete the zipped appflowy logs file
+      await zipFile.delete();
+    } else if (Platform.isAndroid) {
+      await Share.shareXFiles([XFile(zipFile.path)]);
+      // delete the zipped appflowy logs file
+      await zipFile.delete();
+    } else {
+      // open the directory
+      await afLaunchUri(zipFile.uri);
+    }
+  } catch (e) {
+    if (context != null && context.mounted) {
+      showToastNotification(
+        message: e.toString(),
+        type: ToastificationType.error,
+      );
+    }
   }
-
-  // delete the zipped appflowy logs file
-  await zipFile.delete();
 }

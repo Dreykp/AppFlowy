@@ -1,23 +1,25 @@
 #![allow(unused_doc_comments)]
 
+use collab_integrate::collab_builder::AppFlowyCollabBuilder;
+use collab_plugins::CollabKVDB;
+use flowy_ai::ai_manager::AIManager;
+use flowy_database2::DatabaseManager;
+use flowy_document::manager::DocumentManager;
+use flowy_error::{FlowyError, FlowyResult};
+use flowy_folder::manager::FolderManager;
 use flowy_search::folder::indexer::FolderIndexManagerImpl;
 use flowy_search::services::manager::SearchManager;
-use flowy_storage::ObjectStorageService;
-use semver::Version;
+use flowy_server::af_cloud::define::LoggedUser;
+use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use sysinfo::System;
 use tokio::sync::RwLock;
 use tracing::{debug, error, event, info, instrument};
+use uuid::Uuid;
 
-use collab_integrate::collab_builder::{AppFlowyCollabBuilder, CollabPluginProviderType};
-use flowy_database2::DatabaseManager;
-use flowy_document::manager::DocumentManager;
-use flowy_error::{FlowyError, FlowyResult};
-use flowy_folder::manager::FolderManager;
-use flowy_server::af_cloud::define::ServerUser;
-
-use flowy_sqlite::kv::StorePreferences;
+use flowy_sqlite::kv::KVStorePreferences;
+use flowy_storage::manager::StorageManager;
 use flowy_user::services::authenticate_user::AuthenticateUser;
 use flowy_user::services::entities::UserConfig;
 use flowy_user::user_manager::UserManager;
@@ -25,21 +27,26 @@ use flowy_user::user_manager::UserManager;
 use lib_dispatch::prelude::*;
 use lib_dispatch::runtime::AFPluginRuntime;
 use lib_infra::priority_task::{TaskDispatcher, TaskRunner};
-use lib_infra::util::Platform;
+use lib_infra::util::OperatingSystem;
 use lib_log::stream_log::StreamLogSender;
 use module::make_plugins;
 
 use crate::config::AppFlowyCoreConfig;
+use crate::deps_resolve::file_storage_deps::FileStorageResolver;
 use crate::deps_resolve::*;
-use crate::integrate::collab_interact::CollabInteractImpl;
-use crate::integrate::log::init_log;
-use crate::integrate::server::{current_server_type, Server, ServerProvider};
-use crate::integrate::user::UserStatusCallbackImpl;
+use crate::log_filter::init_log;
+use crate::server_layer::ServerProvider;
+use deps_resolve::reminder_deps::CollabInteractImpl;
+use flowy_sqlite::DBConnection;
+use lib_infra::async_trait::async_trait;
+use user_state_callback::UserStatusCallbackImpl;
 
 pub mod config;
 mod deps_resolve;
-pub mod integrate;
+mod log_filter;
 pub mod module;
+pub(crate) mod server_layer;
+pub(crate) mod user_state_callback;
 
 /// This name will be used as to identify the current [AppFlowyCore] instance.
 /// Don't change this.
@@ -56,8 +63,10 @@ pub struct AppFlowyCore {
   pub event_dispatcher: Arc<AFPluginDispatcher>,
   pub server_provider: Arc<ServerProvider>,
   pub task_dispatcher: Arc<RwLock<TaskDispatcher>>,
-  pub store_preference: Arc<StorePreferences>,
+  pub store_preference: Arc<KVStorePreferences>,
   pub search_manager: Arc<SearchManager>,
+  pub ai_manager: Arc<AIManager>,
+  pub storage_manager: Arc<StorageManager>,
 }
 
 impl AppFlowyCore {
@@ -66,7 +75,7 @@ impl AppFlowyCore {
     runtime: Arc<AFPluginRuntime>,
     stream_log_sender: Option<Arc<dyn StreamLogSender>>,
   ) -> Self {
-    let platform = Platform::from(&config.platform);
+    let platform = OperatingSystem::from(&config.platform);
 
     #[allow(clippy::if_same_then_else)]
     if cfg!(debug_assertions) {
@@ -83,11 +92,13 @@ impl AppFlowyCore {
       init_log(&config, &platform, stream_log_sender);
     }
 
-    info!(
-      "💡{:?}, platform: {:?}",
-      System::long_os_version(),
-      platform
-    );
+    if sysinfo::IS_SUPPORTED_SYSTEM {
+      info!(
+        "💡{:?}, platform: {:?}",
+        System::long_os_version(),
+        platform
+      );
+    }
 
     Self::init(config, runtime).await
   }
@@ -98,21 +109,22 @@ impl AppFlowyCore {
 
   #[instrument(skip(config, runtime))]
   async fn init(config: AppFlowyCoreConfig, runtime: Arc<AFPluginRuntime>) -> Self {
+    config.ensure_path();
+
     // Init the key value database
-    let store_preference = Arc::new(StorePreferences::new(&config.storage_path).unwrap());
+    let store_preference = Arc::new(KVStorePreferences::new(&config.storage_path).unwrap());
     info!("🔥{:?}", &config);
 
-    let task_scheduler = TaskDispatcher::new(Duration::from_secs(2));
+    let task_scheduler = TaskDispatcher::new(Duration::from_secs(10));
     let task_dispatcher = Arc::new(RwLock::new(task_scheduler));
     runtime.spawn(TaskRunner::run(task_dispatcher.clone()));
 
-    let app_version = Version::parse(&config.app_version).unwrap_or_else(|_| Version::new(0, 5, 4));
     let user_config = UserConfig::new(
       &config.name,
       &config.storage_path,
       &config.application_path,
       &config.device_id,
-      app_version,
+      config.app_version.clone(),
     );
 
     let authenticate_user = Arc::new(AuthenticateUser::new(
@@ -120,12 +132,10 @@ impl AppFlowyCore {
       store_preference.clone(),
     ));
 
-    let server_type = current_server_type();
-    debug!("🔥runtime:{}, server:{}", runtime, server_type);
+    debug!("🔥runtime:{}", runtime);
 
     let server_provider = Arc::new(ServerProvider::new(
       config.clone(),
-      server_type,
       Arc::downgrade(&store_preference),
       ServerUserImpl(Arc::downgrade(&authenticate_user)),
     ));
@@ -139,7 +149,14 @@ impl AppFlowyCore {
       document_manager,
       collab_builder,
       search_manager,
+      ai_manager,
+      storage_manager,
     ) = async {
+      let storage_manager = FileStorageResolver::resolve(
+        Arc::downgrade(&authenticate_user),
+        server_provider.clone(),
+        &user_config.storage_path,
+      );
       /// The shared collab builder is used to build the [Collab] instance. The plugins will be loaded
       /// on demand based on the [CollabPluginConfig].
       let collab_builder = Arc::new(AppFlowyCollabBuilder::new(
@@ -150,11 +167,41 @@ impl AppFlowyCore {
       collab_builder
         .set_snapshot_persistence(Arc::new(SnapshotDBImpl(Arc::downgrade(&authenticate_user))));
 
+      let folder_indexer = Arc::new(FolderIndexManagerImpl::new(Arc::downgrade(
+        &authenticate_user,
+      )));
+
+      let folder_manager = FolderDepsResolver::resolve(
+        Arc::downgrade(&authenticate_user),
+        collab_builder.clone(),
+        server_provider.clone(),
+        folder_indexer.clone(),
+        store_preference.clone(),
+      )
+      .await;
+
+      let folder_query_service = FolderServiceImpl::new(
+        Arc::downgrade(&folder_manager),
+        Arc::downgrade(&authenticate_user),
+      );
+
+      let ai_manager = ChatDepsResolver::resolve(
+        Arc::downgrade(&authenticate_user),
+        server_provider.clone(),
+        store_preference.clone(),
+        Arc::downgrade(&storage_manager.storage_service),
+        server_provider.clone(),
+        folder_query_service.clone(),
+        server_provider.local_ai.clone(),
+      );
+
       let database_manager = DatabaseDepsResolver::resolve(
         Arc::downgrade(&authenticate_user),
         task_dispatcher.clone(),
         collab_builder.clone(),
         server_provider.clone(),
+        server_provider.clone(),
+        ai_manager.clone(),
       )
       .await;
 
@@ -163,19 +210,8 @@ impl AppFlowyCore {
         &database_manager,
         collab_builder.clone(),
         server_provider.clone(),
-        Arc::downgrade(&(server_provider.clone() as Arc<dyn ObjectStorageService>)),
+        Arc::downgrade(&storage_manager.storage_service),
       );
-
-      let folder_indexer = Arc::new(FolderIndexManagerImpl::new(None));
-      let folder_manager = FolderDepsResolver::resolve(
-        Arc::downgrade(&authenticate_user),
-        &document_manager,
-        &database_manager,
-        collab_builder.clone(),
-        server_provider.clone(),
-        folder_indexer.clone(),
-      )
-      .await;
 
       let user_manager = UserDepsResolver::resolve(
         authenticate_user.clone(),
@@ -187,7 +223,20 @@ impl AppFlowyCore {
       )
       .await;
 
-      let search_manager = SearchDepsResolver::resolve(folder_indexer).await;
+      let search_manager = SearchDepsResolver::resolve(
+        folder_indexer,
+        server_provider.clone(),
+        folder_manager.clone(),
+      )
+      .await;
+
+      // Register the folder operation handlers
+      register_handlers(
+        &folder_manager,
+        document_manager.clone(),
+        database_manager.clone(),
+        ai_manager.clone(),
+      );
 
       (
         user_manager,
@@ -197,17 +246,22 @@ impl AppFlowyCore {
         document_manager,
         collab_builder,
         search_manager,
+        ai_manager,
+        storage_manager,
       )
     }
     .await;
 
     let user_status_callback = UserStatusCallbackImpl {
+      user_manager: user_manager.clone(),
       collab_builder,
       folder_manager: folder_manager.clone(),
       database_manager: database_manager.clone(),
       document_manager: document_manager.clone(),
       server_provider: server_provider.clone(),
-      config: config.clone(),
+      storage_manager: storage_manager.clone(),
+      ai_manager: ai_manager.clone(),
+      runtime: runtime.clone(),
     };
 
     let collab_interact_impl = CollabInteractImpl {
@@ -224,6 +278,7 @@ impl AppFlowyCore {
         error!("Init user failed: {}", err)
       }
     }
+    #[allow(clippy::arc_with_non_send_sync)]
     let event_dispatcher = Arc::new(AFPluginDispatcher::new(
       runtime,
       make_plugins(
@@ -232,6 +287,8 @@ impl AppFlowyCore {
         Arc::downgrade(&user_manager),
         Arc::downgrade(&document_manager),
         Arc::downgrade(&search_manager),
+        Arc::downgrade(&ai_manager),
+        Arc::downgrade(&storage_manager),
       ),
     ));
 
@@ -246,22 +303,14 @@ impl AppFlowyCore {
       task_dispatcher,
       store_preference,
       search_manager,
+      ai_manager,
+      storage_manager,
     }
   }
 
   /// Only expose the dispatcher in test
   pub fn dispatcher(&self) -> Arc<AFPluginDispatcher> {
     self.event_dispatcher.clone()
-  }
-}
-
-impl From<Server> for CollabPluginProviderType {
-  fn from(server_type: Server) -> Self {
-    match server_type {
-      Server::Local => CollabPluginProviderType::Local,
-      Server::AppFlowyCloud => CollabPluginProviderType::AppFlowyCloud,
-      Server::Supabase => CollabPluginProviderType::Supabase,
-    }
   }
 }
 
@@ -276,8 +325,32 @@ impl ServerUserImpl {
     Ok(user)
   }
 }
-impl ServerUser for ServerUserImpl {
-  fn workspace_id(&self) -> FlowyResult<String> {
+
+#[async_trait]
+impl LoggedUser for ServerUserImpl {
+  fn workspace_id(&self) -> FlowyResult<Uuid> {
     self.upgrade_user()?.workspace_id()
+  }
+
+  fn user_id(&self) -> FlowyResult<i64> {
+    self.upgrade_user()?.user_id()
+  }
+
+  async fn is_local_mode(&self) -> FlowyResult<bool> {
+    self.upgrade_user()?.is_local_mode().await
+  }
+
+  fn get_sqlite_db(&self, uid: i64) -> Result<DBConnection, FlowyError> {
+    self.upgrade_user()?.get_sqlite_connection(uid)
+  }
+
+  fn get_collab_db(&self, uid: i64) -> Result<Weak<CollabKVDB>, FlowyError> {
+    self.upgrade_user()?.get_collab_db(uid)
+  }
+
+  fn application_root_dir(&self) -> Result<PathBuf, FlowyError> {
+    Ok(PathBuf::from(
+      self.upgrade_user()?.get_application_root_dir(),
+    ))
   }
 }

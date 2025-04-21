@@ -33,6 +33,7 @@ class BlockActionBottomSheet extends StatelessWidget {
             FlowySvgs.arrow_up_s,
             size: Size.square(20),
           ),
+          showTopBorder: false,
           onTap: () => onAction(BlockActionBottomSheetType.insertAbove),
         ),
         FlowyOptionTile.text(
@@ -48,7 +49,13 @@ class BlockActionBottomSheet extends StatelessWidget {
         FlowyOptionTile.text(
           showTopBorder: false,
           text: LocaleKeys.button_duplicate.tr(),
-          leftIcon: const FlowySvg(FlowySvgs.m_field_copy_s),
+          leftIcon: const Padding(
+            padding: EdgeInsets.all(2),
+            child: FlowySvg(
+              FlowySvgs.copy_s,
+              size: Size.square(16),
+            ),
+          ),
           onTap: () => onAction(BlockActionBottomSheetType.duplicate),
         ),
 
@@ -58,7 +65,8 @@ class BlockActionBottomSheet extends StatelessWidget {
           showTopBorder: false,
           text: LocaleKeys.button_delete.tr(),
           leftIcon: FlowySvg(
-            FlowySvgs.m_delete_s,
+            FlowySvgs.trash_s,
+            size: const Size.square(18),
             color: Theme.of(context).colorScheme.error,
           ),
           textColor: Theme.of(context).colorScheme.error,

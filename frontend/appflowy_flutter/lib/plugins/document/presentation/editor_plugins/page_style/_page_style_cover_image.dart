@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/application/base/mobile_view_page_bloc.dart';
@@ -20,9 +22,9 @@ import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_result/appflowy_result.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flowy_infra_ui/style_widget/snap_bar.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -30,8 +32,10 @@ import 'package:image_picker/image_picker.dart';
 class PageStyleCoverImage extends StatelessWidget {
   PageStyleCoverImage({
     super.key,
+    required this.documentId,
   });
 
+  final String documentId;
   late final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -188,8 +192,7 @@ class PageStyleCoverImage extends StatelessWidget {
         );
       },
       title: LocaleKeys.pageStyle_presets.tr(),
-      barrierColor: Colors.transparent,
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: AFThemeExtension.of(context).background,
       builder: (_) {
         return BlocProvider.value(
           value: pageStyleBloc,
@@ -223,33 +226,29 @@ class PageStyleCoverImage extends StatelessWidget {
         (f) => null,
       );
       final isAppFlowyCloud =
-          userProfile?.authenticator == AuthenticatorPB.AppFlowyCloud;
+          userProfile?.workspaceAuthType == AuthTypePB.Server;
       final PageStyleCoverImageType type;
       if (!isAppFlowyCloud) {
         result = await saveImageToLocalStorage(path);
         type = PageStyleCoverImageType.localImage;
       } else {
         // else we should save the image to cloud storage
-        (result, _) = await saveImageToCloudStorage(path);
+        (result, _) = await saveImageToCloudStorage(path, documentId);
         type = PageStyleCoverImageType.customImage;
       }
       if (!context.mounted) {
         return;
       }
       if (result == null) {
-        showSnapBar(
+        return showSnapBar(
           context,
-          LocaleKeys.document_plugins_image_imageUploadFailed,
+          LocaleKeys.document_plugins_image_imageUploadFailed.tr(),
         );
-        return;
       }
 
       context.read<DocumentPageStyleBloc>().add(
             DocumentPageStyleEvent.updateCoverImage(
-              PageStyleCover(
-                type: type,
-                value: result,
-              ),
+              PageStyleCover(type: type, value: result),
             ),
           );
     }
@@ -257,6 +256,9 @@ class PageStyleCoverImage extends StatelessWidget {
 
   void _showUnsplash(BuildContext context) {
     final pageStyleBloc = context.read<DocumentPageStyleBloc>();
+    final backgroundColor = AFThemeExtension.of(context).background;
+    final maxHeight = MediaQuery.of(context).size.height * 0.6;
+
     context.pop();
 
     showMobileBottomSheet(
@@ -267,8 +269,7 @@ class PageStyleCoverImage extends StatelessWidget {
       showHeader: true,
       showRemoveButton: true,
       title: LocaleKeys.pageStyle_unsplash.tr(),
-      barrierColor: Colors.transparent,
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: backgroundColor,
       onRemove: () {
         pageStyleBloc.add(
           DocumentPageStyleEvent.updateCoverImage(
@@ -278,12 +279,9 @@ class PageStyleCoverImage extends StatelessWidget {
       },
       builder: (_) {
         return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.6,
-            minHeight: 80,
-          ),
+          constraints: BoxConstraints(maxHeight: maxHeight, minHeight: 80),
           child: BlocProvider.value(
-            value: context.read<DocumentPageStyleBloc>(),
+            value: pageStyleBloc,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: UnsplashImageWidget(

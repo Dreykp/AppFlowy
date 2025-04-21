@@ -1,10 +1,10 @@
 import 'package:appflowy/generated/locale_keys.g.dart';
-import 'package:appflowy/plugins/database/grid/presentation/layout/sizes.dart';
-import 'package:appflowy/plugins/database/widgets/row/cells/cell_container.dart';
-import 'package:appflowy/plugins/database/widgets/cell_editor/relation_cell_editor.dart';
 import 'package:appflowy/plugins/database/application/cell/bloc/relation_cell_bloc.dart';
+import 'package:appflowy/plugins/database/grid/presentation/layout/sizes.dart';
+import 'package:appflowy/plugins/database/widgets/cell_editor/relation_cell_editor.dart';
+import 'package:appflowy/plugins/database/widgets/row/cells/cell_container.dart';
+import 'package:appflowy/workspace/application/user/user_workspace_bloc.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
-import 'package:appflowy_popover/appflowy_popover.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
@@ -17,10 +17,12 @@ class DesktopGridRelationCellSkin extends IEditableRelationCellSkin {
   Widget build(
     BuildContext context,
     CellContainerNotifier cellContainerNotifier,
+    ValueNotifier<bool> compactModeNotifier,
     RelationCellBloc bloc,
     RelationCellState state,
     PopoverController popoverController,
   ) {
+    final userWorkspaceBloc = context.read<UserWorkspaceBloc>();
     return AppFlowyPopover(
       controller: popoverController,
       direction: PopoverDirection.bottomWithLeftAligned,
@@ -28,16 +30,24 @@ class DesktopGridRelationCellSkin extends IEditableRelationCellSkin {
       margin: EdgeInsets.zero,
       onClose: () => cellContainerNotifier.isFocus = false,
       popupBuilder: (context) {
-        return BlocProvider.value(
-          value: bloc,
+        return MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: userWorkspaceBloc),
+            BlocProvider.value(value: bloc),
+          ],
           child: const RelationCellEditor(),
         );
       },
       child: Align(
         alignment: AlignmentDirectional.centerStart,
-        child: state.wrap
-            ? _buildWrapRows(context, state.rows)
-            : _buildNoWrapRows(context, state.rows),
+        child: ValueListenableBuilder(
+          valueListenable: compactModeNotifier,
+          builder: (context, compactMode, _) {
+            return state.wrap
+                ? _buildWrapRows(context, state.rows, compactMode)
+                : _buildNoWrapRows(context, state.rows, compactMode);
+          },
+        ),
       ),
     );
   }
@@ -45,16 +55,19 @@ class DesktopGridRelationCellSkin extends IEditableRelationCellSkin {
   Widget _buildWrapRows(
     BuildContext context,
     List<RelatedRowDataPB> rows,
+    bool compactMode,
   ) {
     return Padding(
-      padding: GridSize.cellContentInsets,
+      padding: compactMode
+          ? GridSize.compactCellContentInsets
+          : GridSize.cellContentInsets,
       child: Wrap(
         runSpacing: 4,
         spacing: 4.0,
         children: rows.map(
           (row) {
             final isEmpty = row.name.isEmpty;
-            return FlowyText.medium(
+            return FlowyText(
               isEmpty ? LocaleKeys.grid_row_titlePlaceholder.tr() : row.name,
               color: isEmpty ? Theme.of(context).hintColor : null,
               decoration: TextDecoration.underline,
@@ -69,6 +82,7 @@ class DesktopGridRelationCellSkin extends IEditableRelationCellSkin {
   Widget _buildNoWrapRows(
     BuildContext context,
     List<RelatedRowDataPB> rows,
+    bool compactMode,
   ) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
@@ -81,7 +95,7 @@ class DesktopGridRelationCellSkin extends IEditableRelationCellSkin {
           children: rows.map(
             (row) {
               final isEmpty = row.name.isEmpty;
-              return FlowyText.medium(
+              return FlowyText(
                 isEmpty ? LocaleKeys.grid_row_titlePlaceholder.tr() : row.name,
                 color: isEmpty ? Theme.of(context).hintColor : null,
                 decoration: TextDecoration.underline,

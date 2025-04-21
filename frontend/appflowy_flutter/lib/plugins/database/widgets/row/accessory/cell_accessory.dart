@@ -1,13 +1,14 @@
+import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/plugins/database/grid/presentation/widgets/header/field_type_extension.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/field_entities.pb.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra/size.dart';
 import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/style_widget/hover.dart';
-import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
 import 'package:styled_widget/styled_widget.dart';
 
 import '../../cell/editable_cell_builder.dart';
@@ -124,6 +125,12 @@ class _AccessoryHoverState extends State<AccessoryHover> {
 
   @override
   Widget build(BuildContext context) {
+    // Some FieldType has built-in handling for more gestures
+    // and granular control, so we don't need to show the accessory.
+    if (!widget.fieldType.showRowDetailAccessory) {
+      return widget.child;
+    }
+
     final List<Widget> children = [
       DecoratedBox(
         decoration: BoxDecoration(
@@ -181,6 +188,9 @@ class CellAccessoryContainer extends StatelessWidget {
       );
     }).toList();
 
-    return Wrap(spacing: 6, children: children);
+    return SeparatedRow(
+      separatorBuilder: () => const HSpace(6),
+      children: children,
+    );
   }
 }

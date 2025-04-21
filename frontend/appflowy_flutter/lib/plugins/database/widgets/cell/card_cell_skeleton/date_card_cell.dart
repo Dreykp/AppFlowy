@@ -1,10 +1,13 @@
+import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller_builder.dart';
 import 'package:appflowy/plugins/database/application/database_controller.dart';
 import 'package:appflowy/plugins/database/application/cell/bloc/date_cell_bloc.dart';
+import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../editable_cell_skeleton/date.dart';
 import 'card_cell.dart';
 
 class DateCardCellStyle extends CardCellStyle {
@@ -44,18 +47,33 @@ class _DateCellState extends State<DateCardCell> {
         );
       },
       child: BlocBuilder<DateCellBloc, DateCellState>(
-        buildWhen: (previous, current) => previous.dateStr != current.dateStr,
         builder: (context, state) {
-          if (state.dateStr.isEmpty) {
+          final dateStr = getDateCellStrFromCellData(
+            state.fieldInfo,
+            state.cellData,
+          );
+
+          if (dateStr.isEmpty) {
             return const SizedBox.shrink();
           }
 
           return Container(
             alignment: Alignment.centerLeft,
             padding: widget.style.padding,
-            child: Text(
-              state.dateStr,
-              style: widget.style.textStyle,
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    dateStr,
+                    style: widget.style.textStyle,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (state.cellData.reminderId.isNotEmpty) ...[
+                  const HSpace(4),
+                  const FlowySvg(FlowySvgs.clock_alarm_s),
+                ],
+              ],
             ),
           );
         },

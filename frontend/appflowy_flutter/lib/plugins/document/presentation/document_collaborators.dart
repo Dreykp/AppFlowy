@@ -1,12 +1,13 @@
+import 'package:appflowy/plugins/document/application/document_awareness_metadata.dart';
 import 'package:appflowy/plugins/document/application/document_collaborators_bloc.dart';
 import 'package:appflowy/plugins/document/presentation/collaborator_avater_stack.dart';
+import 'package:appflowy/workspace/presentation/widgets/user_avatar.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
-import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:avatar_stack/avatar_stack.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class DocumentCollaborators extends StatelessWidget {
   const DocumentCollaborators({
@@ -66,24 +67,41 @@ class DocumentCollaborators extends StatelessWidget {
                   ),
                 );
               },
-              avatars: collaborators
-                  .map(
-                    (c) => FlowyTooltip(
-                      message: c.userName,
-                      child: CircleAvatar(
-                        backgroundColor: c.cursorColor.tryToColor(),
-                        child: FlowyText(
-                          c.userName.characters.firstOrNull ?? ' ',
-                          fontSize: fontSize,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
+              avatars: [
+                ...collaborators.map(
+                  (c) => _UserAvatar(fontSize: fontSize, user: c, width: width),
+                ),
+              ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _UserAvatar extends StatelessWidget {
+  const _UserAvatar({
+    this.fontSize,
+    required this.user,
+    required this.width,
+  });
+
+  final DocumentAwarenessMetadata user;
+  final double? fontSize;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return FlowyTooltip(
+      message: user.userName,
+      child: IgnorePointer(
+        child: UserAvatar(
+          iconUrl: user.userAvatar,
+          name: user.userName,
+          size: 30.0,
+          fontSize: fontSize ?? (UniversalPlatform.isMobile ? 14 : 12),
+        ),
       ),
     );
   }

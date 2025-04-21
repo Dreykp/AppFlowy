@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/mobile/presentation/base/animated_gesture.dart';
 import 'package:appflowy/mobile/presentation/bottom_sheet/bottom_sheet.dart';
-import 'package:appflowy/mobile/presentation/home/mobile_home_setting_page.dart';
 import 'package:appflowy/mobile/presentation/home/workspaces/workspace_menu_bottom_sheet.dart';
 import 'package:appflowy/plugins/base/emoji/emoji_picker_screen.dart';
-import 'package:appflowy/plugins/base/icon/icon_picker.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
+import 'package:appflowy/shared/icon_emoji_picker/tab.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/util/built_in_svgs.dart';
 import 'package:appflowy/workspace/application/user/settings_user_bloc.dart';
@@ -15,8 +14,11 @@ import 'package:appflowy/workspace/presentation/home/menu/sidebar/workspace/_sid
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+
+import 'setting/settings_popup_menu.dart';
 
 class MobileHomePageHeader extends StatelessWidget {
   const MobileHomePageHeader({
@@ -36,7 +38,7 @@ class MobileHomePageHeader extends StatelessWidget {
           final isCollaborativeWorkspace =
               context.read<UserWorkspaceBloc>().state.isCollabWorkspaceOn;
           return ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 52),
+            constraints: const BoxConstraints(minHeight: 56),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -45,12 +47,10 @@ class MobileHomePageHeader extends StatelessWidget {
                       ? _MobileWorkspace(userProfile: userProfile)
                       : _MobileUser(userProfile: userProfile),
                 ),
-                IconButton(
-                  onPressed: () => context.push(
-                    MobileHomeSettingPage.routeName,
-                  ),
-                  icon: const FlowySvg(FlowySvgs.m_setting_m),
+                HomePageSettingsPopupMenu(
+                  userProfile: userProfile,
                 ),
+                const HSpace(8.0),
               ],
             ),
           );
@@ -111,8 +111,10 @@ class _MobileWorkspace extends StatelessWidget {
         if (currentWorkspace == null) {
           return const SizedBox.shrink();
         }
-        return GestureDetector(
-          onTap: () {
+        return AnimatedGestureDetector(
+          scaleFactor: 0.99,
+          alignment: Alignment.centerLeft,
+          onTapUp: () {
             context.read<UserWorkspaceBloc>().add(
                   const UserWorkspaceEvent.fetchWorkspaces(),
                 );
@@ -120,46 +122,31 @@ class _MobileWorkspace extends StatelessWidget {
           },
           child: Row(
             children: [
-              const HSpace(2.0),
-              SizedBox.square(
-                dimension: 34.0,
-                child: WorkspaceIcon(
-                  workspace: currentWorkspace,
-                  iconSize: 26,
-                  enableEdit: false,
-                  onSelected: (result) => context.read<UserWorkspaceBloc>().add(
-                        UserWorkspaceEvent.updateWorkspaceIcon(
-                          currentWorkspace.workspaceId,
-                          result.emoji,
-                        ),
+              WorkspaceIcon(
+                workspace: currentWorkspace,
+                iconSize: 36,
+                fontSize: 18.0,
+                enableEdit: true,
+                alignment: Alignment.centerLeft,
+                figmaLineHeight: 26.0,
+                emojiSize: 24.0,
+                borderRadius: 12.0,
+                showBorder: false,
+                onSelected: (result) => context.read<UserWorkspaceBloc>().add(
+                      UserWorkspaceEvent.updateWorkspaceIcon(
+                        currentWorkspace.workspaceId,
+                        result.emoji,
                       ),
-                ),
+                    ),
               ),
-              const HSpace(8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        FlowyText.medium(
-                          currentWorkspace.name,
-                          fontSize: 16.0,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const HSpace(4.0),
-                        const FlowySvg(FlowySvgs.list_dropdown_s),
-                      ],
-                    ),
-                    FlowyText.medium(
-                      userProfile.email.isNotEmpty
-                          ? userProfile.email
-                          : userProfile.name,
-                      overflow: TextOverflow.ellipsis,
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ],
+              currentWorkspace.icon.isNotEmpty
+                  ? const HSpace(2)
+                  : const HSpace(8),
+              Flexible(
+                child: FlowyText.semibold(
+                  currentWorkspace.name,
+                  fontSize: 20.0,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -177,8 +164,13 @@ class _MobileWorkspace extends StatelessWidget {
       showDivider: false,
       showHeader: true,
       showDragHandle: true,
+      showCloseButton: true,
+      useRootNavigator: true,
+      enableScrollable: true,
+      bottomSheetPadding: context.bottomSheetPadding(),
       title: LocaleKeys.workspace_menuTitle.tr(),
-      builder: (_) {
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) {
         return BlocProvider.value(
           value: context.read<UserWorkspaceBloc>(),
           child: BlocBuilder<UserWorkspaceBloc, UserWorkspaceState>(
@@ -193,7 +185,7 @@ class _MobileWorkspace extends StatelessWidget {
                 currentWorkspace: currentWorkspace,
                 workspaces: workspaces,
                 onWorkspaceSelected: (workspace) {
-                  context.pop();
+                  Navigator.of(sheetContext).pop();
 
                   if (workspace == currentWorkspace) {
                     return;
@@ -202,6 +194,7 @@ class _MobileWorkspace extends StatelessWidget {
                   context.read<UserWorkspaceBloc>().add(
                         UserWorkspaceEvent.openWorkspace(
                           workspace.workspaceId,
+                          workspace.workspaceAuthType,
                         ),
                       );
                 },
@@ -237,12 +230,13 @@ class _UserIcon extends StatelessWidget {
               fontSize: 26,
             ),
       onTap: () async {
-        final icon = await context.push<EmojiPickerResult>(
+        final icon = await context.push<EmojiIconData>(
           Uri(
             path: MobileEmojiPickerScreen.routeName,
             queryParameters: {
               MobileEmojiPickerScreen.pageTitle:
                   LocaleKeys.titleBar_userIcon.tr(),
+              MobileEmojiPickerScreen.selectTabs: [PickerTabType.emoji.name],
             },
           ).toString(),
         );

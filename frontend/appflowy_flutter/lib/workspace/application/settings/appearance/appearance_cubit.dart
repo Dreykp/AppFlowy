@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:appflowy/core/config/kv.dart';
 import 'package:appflowy/core/config/kv_keys.dart';
+import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/user/application/user_settings_service.dart';
 import 'package:appflowy/util/color_to_hex_string.dart';
 import 'package:appflowy/workspace/application/appearance_defaults.dart';
 import 'package:appflowy/workspace/application/settings/appearance/base_appearance.dart';
+import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/date_time.pbenum.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/user_setting.pb.dart';
@@ -17,6 +19,7 @@ import 'package:flowy_infra/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 part 'appearance_cubit.freezed.dart';
 
@@ -41,7 +44,6 @@ class AppearanceSettingsCubit extends Cubit<AppearanceSettingsState> {
             appTheme,
             appearanceSettings.themeMode,
             appearanceSettings.font,
-            appearanceSettings.monospaceFont,
             appearanceSettings.layoutDirection,
             appearanceSettings.textDirection,
             appearanceSettings.enableRtlToolbarItems,
@@ -98,7 +100,19 @@ class AppearanceSettingsCubit extends Cubit<AppearanceSettingsState> {
   Future<void> setTheme(String themeName) async {
     _appearanceSettings.theme = themeName;
     unawaited(_saveAppearanceSettings());
-    emit(state.copyWith(appTheme: await AppTheme.fromName(themeName)));
+    try {
+      final theme = await AppTheme.fromName(themeName);
+      emit(state.copyWith(appTheme: theme));
+    } catch (e) {
+      Log.error("Error setting theme: $e");
+      if (UniversalPlatform.isMacOS) {
+        showToastNotification(
+          message:
+              LocaleKeys.settings_workspacePage_theme_failedToLoadThemes.tr(),
+          type: ToastificationType.error,
+        );
+      }
+    }
   }
 
   /// Reset the current user selected theme back to the default
@@ -130,9 +144,8 @@ class AppearanceSettingsCubit extends Cubit<AppearanceSettingsState> {
     emit(state.copyWith(layoutDirection: layoutDirection));
   }
 
-  void setTextDirection(AppFlowyTextDirection? textDirection) {
-    _appearanceSettings.textDirection =
-        textDirection?.toTextDirectionPB() ?? TextDirectionPB.FALLBACK;
+  void setTextDirection(AppFlowyTextDirection textDirection) {
+    _appearanceSettings.textDirection = textDirection.toTextDirectionPB();
     _saveAppearanceSettings();
     emit(state.copyWith(textDirection: textDirection));
   }
@@ -311,7 +324,6 @@ ThemeModePB _themeModeToPB(ThemeMode themeMode) {
     case ThemeMode.dark:
       return ThemeModePB.Dark;
     case ThemeMode.system:
-    default:
       return ThemeModePB.System;
   }
 }
@@ -337,7 +349,7 @@ enum AppFlowyTextDirection {
   rtl,
   auto;
 
-  static AppFlowyTextDirection? fromTextDirectionPB(
+  static AppFlowyTextDirection fromTextDirectionPB(
     TextDirectionPB? textDirectionPB,
   ) {
     switch (textDirectionPB) {
@@ -348,7 +360,7 @@ enum AppFlowyTextDirection {
       case TextDirectionPB.AUTO:
         return AppFlowyTextDirection.auto;
       default:
-        return null;
+        return AppFlowyTextDirection.ltr;
     }
   }
 
@@ -360,8 +372,6 @@ enum AppFlowyTextDirection {
         return TextDirectionPB.RTL;
       case AppFlowyTextDirection.auto:
         return TextDirectionPB.AUTO;
-      default:
-        return TextDirectionPB.FALLBACK;
     }
   }
 }
@@ -374,9 +384,8 @@ class AppearanceSettingsState with _$AppearanceSettingsState {
     required AppTheme appTheme,
     required ThemeMode themeMode,
     required String font,
-    required String monospaceFont,
     required LayoutDirection layoutDirection,
-    required AppFlowyTextDirection? textDirection,
+    required AppFlowyTextDirection textDirection,
     required bool enableRtlToolbarItems,
     required Locale locale,
     required bool isMenuCollapsed,
@@ -393,7 +402,6 @@ class AppearanceSettingsState with _$AppearanceSettingsState {
     AppTheme appTheme,
     ThemeModePB themeModePB,
     String font,
-    String monospaceFont,
     LayoutDirectionPB layoutDirectionPB,
     TextDirectionPB? textDirectionPB,
     bool enableRtlToolbarItems,
@@ -410,7 +418,6 @@ class AppearanceSettingsState with _$AppearanceSettingsState {
     return AppearanceSettingsState(
       appTheme: appTheme,
       font: font,
-      monospaceFont: monospaceFont,
       layoutDirection: LayoutDirection.fromLayoutDirectionPB(layoutDirectionPB),
       textDirection: AppFlowyTextDirection.fromTextDirectionPB(textDirectionPB),
       enableRtlToolbarItems: enableRtlToolbarItems,
@@ -428,6 +435,7 @@ class AppearanceSettingsState with _$AppearanceSettingsState {
   }
 
   ThemeData get lightTheme => _getThemeData(Brightness.light);
+
   ThemeData get darkTheme => _getThemeData(Brightness.dark);
 
   ThemeData _getThemeData(Brightness brightness) {
@@ -435,7 +443,7 @@ class AppearanceSettingsState with _$AppearanceSettingsState {
       appTheme,
       brightness,
       font,
-      monospaceFont,
+      builtInCodeFontFamily,
     );
   }
 }

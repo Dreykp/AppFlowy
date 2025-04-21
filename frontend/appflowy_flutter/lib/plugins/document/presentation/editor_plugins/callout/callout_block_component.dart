@@ -1,5 +1,8 @@
 import 'package:appflowy/generated/locale_keys.g.dart' show LocaleKeys;
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/plugins/document/application/document_bloc.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
+import 'package:appflowy/shared/icon_emoji_picker/tab.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:easy_localization/easy_localization.dart'
     show StringTranslateExtension;
@@ -8,6 +11,7 @@ import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 import '../base/emoji_picker_button.dart';
 
@@ -31,17 +35,22 @@ class CalloutBlockKeys {
   ///
   /// The value is a String.
   static const String icon = 'icon';
+
+  /// the type of [FlowyIconType]
+  static const String iconType = 'icon_type';
 }
 
 // The one is inserted through selection menu
 Node calloutNode({
   Delta? delta,
-  String emoji = '📌',
+  EmojiIconData? emoji,
   Color? defaultColor,
 }) {
+  final defaultEmoji = emoji ?? EmojiIconData.emoji('📌');
   final attributes = {
     CalloutBlockKeys.delta: (delta ?? Delta()).toJson(),
-    CalloutBlockKeys.icon: emoji,
+    CalloutBlockKeys.icon: defaultEmoji.emoji,
+    CalloutBlockKeys.iconType: defaultEmoji.type,
     CalloutBlockKeys.backgroundColor: defaultColor?.toHex(),
   };
   return Node(
@@ -68,9 +77,11 @@ class CalloutBlockComponentBuilder extends BlockComponentBuilder {
   CalloutBlockComponentBuilder({
     super.configuration,
     required this.defaultColor,
+    required this.inlinePadding,
   });
 
   final Color defaultColor;
+  final EdgeInsets Function(Node node) inlinePadding;
 
   @override
   BlockComponentWidget build(BlockComponentContext blockComponentContext) {
@@ -79,21 +90,22 @@ class CalloutBlockComponentBuilder extends BlockComponentBuilder {
       key: node.key,
       node: node,
       defaultColor: defaultColor,
+      inlinePadding: inlinePadding,
       configuration: configuration,
       showActions: showActions(node),
       actionBuilder: (context, state) => actionBuilder(
         blockComponentContext,
         state,
       ),
+      actionTrailingBuilder: (context, state) => actionTrailingBuilder(
+        blockComponentContext,
+        state,
+      ),
     );
   }
 
-  // validate the data of the node, if the result is false, the node will be rendered as a placeholder
   @override
-  bool validate(Node node) =>
-      node.delta != null &&
-      node.children.isEmpty &&
-      node.attributes[CalloutBlockKeys.icon] is String;
+  BlockComponentValidate get validate => (node) => node.delta != null;
 }
 
 // the main widget for rendering the callout block
@@ -103,11 +115,14 @@ class CalloutBlockComponentWidget extends BlockComponentStatefulWidget {
     required super.node,
     super.showActions,
     super.actionBuilder,
+    super.actionTrailingBuilder,
     super.configuration = const BlockComponentConfiguration(),
     required this.defaultColor,
+    required this.inlinePadding,
   });
 
   final Color defaultColor;
+  final EdgeInsets Function(Node node) inlinePadding;
 
   @override
   State<CalloutBlockComponentWidget> createState() =>
@@ -122,7 +137,8 @@ class _CalloutBlockComponentWidgetState
         BlockComponentConfigurable,
         BlockComponentTextDirectionMixin,
         BlockComponentAlignMixin,
-        BlockComponentBackgroundColorMixin {
+        BlockComponentBackgroundColorMixin,
+        NestedBlockComponentStatefulWidgetMixin {
   // the key used to forward focus to the richtext child
   @override
   final forwardKey = GlobalKey(debugLabel: 'flowy_rich_text');
@@ -152,59 +168,120 @@ class _CalloutBlockComponentWidgetState
   }
 
   // get the emoji of the note block from the node's attributes or default to '📌'
-  String get emoji {
+  EmojiIconData get emoji {
     final icon = node.attributes[CalloutBlockKeys.icon];
-    if (icon == null || icon.isEmpty) {
-      return '📌';
-    }
-    return icon;
+    final type =
+        node.attributes[CalloutBlockKeys.iconType] ?? FlowyIconType.emoji;
+    EmojiIconData result = EmojiIconData.emoji('📌');
+    try {
+      result = EmojiIconData(FlowyIconType.values.byName(type), icon);
+    } catch (_) {}
+    return result;
   }
 
-  // get access to the editor state via provider
   @override
-  late final editorState = Provider.of<EditorState>(context, listen: false);
+  Widget build(BuildContext context) {
+    Widget child = node.children.isEmpty
+        ? buildComponent(context)
+        : buildComponentWithChildren(context);
+
+    if (UniversalPlatform.isDesktop) {
+      child = Padding(
+        padding: EdgeInsets.symmetric(vertical: 2.0),
+        child: child,
+      );
+    }
+
+    return child;
+  }
+
+  @override
+  Widget buildComponentWithChildren(BuildContext context) {
+    Widget child = Stack(
+      children: [
+        Positioned.fill(
+          left: UniversalPlatform.isMobile ? 0 : cachedLeft,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.all(Radius.circular(6.0)),
+              color: backgroundColor,
+            ),
+          ),
+        ),
+        NestedListWidget(
+          indentPadding: indentPadding.copyWith(bottom: 8),
+          child: buildComponent(context, withBackgroundColor: false),
+          children: editorState.renderer.buildList(
+            context,
+            widget.node.children,
+          ),
+        ),
+      ],
+    );
+
+    if (UniversalPlatform.isMobile) {
+      child = Padding(
+        padding: padding,
+        child: child,
+      );
+    }
+
+    return child;
+  }
 
   // build the callout block widget
   @override
-  Widget build(BuildContext context) {
+  Widget buildComponent(
+    BuildContext context, {
+    bool withBackgroundColor = true,
+  }) {
     final textDirection = calculateTextDirection(
       layoutDirection: Directionality.maybeOf(context),
     );
-
+    final (emojiSize, emojiButtonSize) = calculateEmojiSize();
+    final documentId = context.read<DocumentBloc?>()?.documentId;
     Widget child = Container(
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(8.0)),
-        color: backgroundColor,
+        borderRadius: const BorderRadius.all(Radius.circular(6.0)),
+        color: withBackgroundColor ? backgroundColor : null,
       ),
+      padding: widget.inlinePadding(widget.node),
       width: double.infinity,
       alignment: alignment,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         textDirection: textDirection,
         children: [
+          const HSpace(6.0),
           // the emoji picker button for the note
-          Padding(
-            padding: const EdgeInsets.only(
-              top: 8.0,
-              left: 4.0,
-              right: 4.0,
-            ),
-            child: EmojiPickerButton(
-              key: ValueKey(
-                emoji.toString(),
-              ), // force to refresh the popover state
-              title: '',
-              emoji: emoji,
-              onSubmitted: (emoji, controller) {
-                setEmoji(emoji);
-                controller?.close();
-              },
-            ),
+          EmojiPickerButton(
+            // force to refresh the popover state
+            key: ValueKey(widget.node.id + emoji.emoji),
+            enable: editorState.editable,
+            title: '',
+            margin: UniversalPlatform.isMobile
+                ? const EdgeInsets.symmetric(vertical: 2.0, horizontal: 10.0)
+                : EdgeInsets.zero,
+            emoji: emoji,
+            emojiSize: emojiSize,
+            showBorder: false,
+            buttonSize: emojiButtonSize,
+            documentId: documentId,
+            tabs: const [
+              PickerTabType.emoji,
+              PickerTabType.icon,
+              PickerTabType.custom,
+            ],
+            onSubmitted: (r, controller) {
+              setEmojiIconData(r.data);
+              if (!r.keepOpen) controller?.close();
+            },
           ),
+          if (UniversalPlatform.isDesktopOrWeb) const HSpace(6.0),
           Flexible(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
               child: buildCalloutBlockComponent(context, textDirection),
             ),
           ),
@@ -213,17 +290,26 @@ class _CalloutBlockComponentWidgetState
       ),
     );
 
-    child = Padding(
-      key: blockComponentKey,
-      padding: padding,
-      child: child,
-    );
+    if (UniversalPlatform.isMobile && node.children.isEmpty) {
+      child = Padding(
+        key: blockComponentKey,
+        padding: padding,
+        child: child,
+      );
+    } else {
+      child = Container(
+        key: blockComponentKey,
+        padding: EdgeInsets.zero,
+        child: child,
+      );
+    }
 
     child = BlockSelectionContainer(
       node: node,
       delegate: this,
       listenable: editorState.selectionNotifier,
       blockColor: editorState.editorStyle.selectionColor,
+      selectionAboveBlock: true,
       supportTypes: const [
         BlockSelectionType.block,
       ],
@@ -234,6 +320,7 @@ class _CalloutBlockComponentWidgetState
       child = BlockComponentActionWrapper(
         node: widget.node,
         actionBuilder: widget.actionBuilder!,
+        actionTrailingBuilder: widget.actionTrailingBuilder,
         child: child,
       );
     }
@@ -246,36 +333,46 @@ class _CalloutBlockComponentWidgetState
     BuildContext context,
     TextDirection textDirection,
   ) {
-    return Padding(
-      padding: padding,
-      child: AppFlowyRichText(
-        key: forwardKey,
-        delegate: this,
-        node: widget.node,
-        editorState: editorState,
-        placeholderText: placeholderText,
-        textSpanDecorator: (textSpan) => textSpan.updateTextStyle(
-          textStyle,
-        ),
-        placeholderTextSpanDecorator: (textSpan) => textSpan.updateTextStyle(
-          placeholderTextStyle,
-        ),
-        textDirection: textDirection,
-        cursorColor: editorState.editorStyle.cursorColor,
-        selectionColor: editorState.editorStyle.selectionColor,
+    return AppFlowyRichText(
+      key: forwardKey,
+      delegate: this,
+      node: widget.node,
+      editorState: editorState,
+      placeholderText: placeholderText,
+      textAlign: alignment?.toTextAlign ?? textAlign,
+      textSpanDecorator: (textSpan) => textSpan.updateTextStyle(
+        textStyleWithTextSpan(textSpan: textSpan),
       ),
+      placeholderTextSpanDecorator: (textSpan) => textSpan.updateTextStyle(
+        placeholderTextStyleWithTextSpan(textSpan: textSpan),
+      ),
+      textDirection: textDirection,
+      cursorColor: editorState.editorStyle.cursorColor,
+      selectionColor: editorState.editorStyle.selectionColor,
     );
   }
 
   // set the emoji of the note block
-  Future<void> setEmoji(String emoji) async {
+  Future<void> setEmojiIconData(EmojiIconData data) async {
     final transaction = editorState.transaction
       ..updateNode(node, {
-        CalloutBlockKeys.icon: emoji,
+        CalloutBlockKeys.icon: data.emoji,
+        CalloutBlockKeys.iconType: data.type.name,
       })
       ..afterSelection = Selection.collapsed(
         Position(path: node.path, offset: node.delta?.length ?? 0),
       );
     await editorState.apply(transaction);
+  }
+
+  (double, Size) calculateEmojiSize() {
+    const double defaultEmojiSize = 16.0;
+    const Size defaultEmojiButtonSize = Size(30.0, 30.0);
+    final double emojiSize =
+        editorState.editorStyle.textStyleConfiguration.text.fontSize ??
+            defaultEmojiSize;
+    final emojiButtonSize =
+        defaultEmojiButtonSize * emojiSize / defaultEmojiSize;
+    return (emojiSize, emojiButtonSize);
   }
 }

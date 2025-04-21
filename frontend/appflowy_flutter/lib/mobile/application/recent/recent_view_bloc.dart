@@ -1,13 +1,13 @@
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
-import 'package:appflowy/plugins/document/application/document_data_pb_extension.dart';
 import 'package:appflowy/plugins/document/application/document_listener.dart';
-import 'package:appflowy/plugins/document/application/document_service.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.dart';
 import 'package:appflowy/workspace/application/view/prelude.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+
+import '../../../shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
 
 part 'recent_view_bloc.freezed.dart';
 
@@ -41,7 +41,7 @@ class RecentViewBloc extends Bloc<RecentViewEvent, RecentViewState> {
                 add(
                   RecentViewEvent.updateNameOrIcon(
                     view.name,
-                    view.icon.value,
+                    view.icon.toEmojiIconData(),
                   ),
                 );
 
@@ -57,12 +57,24 @@ class RecentViewBloc extends Bloc<RecentViewEvent, RecentViewState> {
                 }
               },
             );
+
+            // only document supports the cover
+            if (view.layout != ViewLayoutPB.Document) {
+              emit(
+                state.copyWith(
+                  name: view.name,
+                  icon: view.icon.toEmojiIconData(),
+                ),
+              );
+            }
+
             final cover = getCoverV2();
+
             if (cover != null) {
               emit(
                 state.copyWith(
                   name: view.name,
-                  icon: view.icon.value,
+                  icon: view.icon.toEmojiIconData(),
                   coverTypeV2: cover.type,
                   coverValue: cover.value,
                 ),
@@ -72,7 +84,7 @@ class RecentViewBloc extends Bloc<RecentViewEvent, RecentViewState> {
               emit(
                 state.copyWith(
                   name: view.name,
-                  icon: view.icon.value,
+                  icon: view.icon.toEmojiIconData(),
                   coverTypeV1: coverTypeV1,
                   coverValue: coverValue,
                 ),
@@ -101,7 +113,6 @@ class RecentViewBloc extends Bloc<RecentViewEvent, RecentViewState> {
     );
   }
 
-  final _service = DocumentService();
   final ViewPB view;
   final DocumentListener _documentListener;
   final ViewListener _viewListener;
@@ -112,16 +123,6 @@ class RecentViewBloc extends Bloc<RecentViewEvent, RecentViewState> {
 
   // for the version under 0.5.5
   Future<(CoverType, String?)> getCoverV1() async {
-    final result = await _service.getDocument(documentId: view.id);
-    final document = result.fold((s) => s.toDocument(), (f) => null);
-    if (document != null) {
-      final coverType = CoverType.fromString(
-        document.root.attributes[DocumentHeaderBlockKeys.coverType],
-      );
-      final coverValue = document
-          .root.attributes[DocumentHeaderBlockKeys.coverDetails] as String?;
-      return (coverType, coverValue);
-    }
     return (CoverType.none, null);
   }
 
@@ -136,14 +137,17 @@ class RecentViewBloc extends Bloc<RecentViewEvent, RecentViewState> {
 @freezed
 class RecentViewEvent with _$RecentViewEvent {
   const factory RecentViewEvent.initial() = Initial;
+
   const factory RecentViewEvent.updateCover(
-    CoverType coverTypeV1, // for the version under 0.5.5, including 0.5.5
+    CoverType coverTypeV1,
+    // for the version under 0.5.5, including 0.5.5
     PageStyleCoverImageType? coverTypeV2, // for the version above 0.5.5
     String? coverValue,
   ) = UpdateCover;
+
   const factory RecentViewEvent.updateNameOrIcon(
     String name,
-    String icon,
+    EmojiIconData icon,
   ) = UpdateNameOrIcon;
 }
 
@@ -151,12 +155,12 @@ class RecentViewEvent with _$RecentViewEvent {
 class RecentViewState with _$RecentViewState {
   const factory RecentViewState({
     required String name,
-    required String icon,
+    required EmojiIconData icon,
     @Default(CoverType.none) CoverType coverTypeV1,
     PageStyleCoverImageType? coverTypeV2,
     @Default(null) String? coverValue,
   }) = _RecentViewState;
 
   factory RecentViewState.initial() =>
-      const RecentViewState(name: '', icon: '');
+      RecentViewState(name: '', icon: EmojiIconData.none());
 }

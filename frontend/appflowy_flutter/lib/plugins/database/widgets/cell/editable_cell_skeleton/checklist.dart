@@ -1,9 +1,9 @@
+import 'package:appflowy/plugins/database/application/cell/bloc/checklist_cell_bloc.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller_builder.dart';
 import 'package:appflowy/plugins/database/application/database_controller.dart';
-import 'package:appflowy/plugins/database/widgets/row/cells/cell_container.dart';
-import 'package:appflowy/plugins/database/application/cell/bloc/checklist_cell_bloc.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_builder.dart';
+import 'package:appflowy/plugins/database/widgets/row/cells/cell_container.dart';
 import 'package:appflowy_popover/appflowy_popover.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,8 +28,8 @@ abstract class IEditableChecklistCellSkin {
   Widget build(
     BuildContext context,
     CellContainerNotifier cellContainerNotifier,
+    ValueNotifier<bool> compactModeNotifier,
     ChecklistCellBloc bloc,
-    ChecklistCellState state,
     PopoverController popoverController,
   );
 }
@@ -70,16 +70,12 @@ class GridChecklistCellState extends GridCellState<EditableChecklistCell> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: cellBloc,
-      child: BlocBuilder<ChecklistCellBloc, ChecklistCellState>(
-        builder: (context, state) {
-          return widget.skin.build(
-            context,
-            widget.cellContainerNotifier,
-            cellBloc,
-            state,
-            _popover,
-          );
-        },
+      child: widget.skin.build(
+        context,
+        widget.cellContainerNotifier,
+        widget.databaseController.compactModeNotifier,
+        cellBloc,
+        _popover,
       ),
     );
   }

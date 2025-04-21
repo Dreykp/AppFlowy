@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/database/card/card_detail/mobile_card_detail_screen.dart';
@@ -7,10 +5,11 @@ import 'package:appflowy/plugins/database/application/database_controller.dart';
 import 'package:appflowy/plugins/database/application/field/field_info.dart';
 import 'package:appflowy/plugins/database/application/row/row_service.dart';
 import 'package:appflowy/plugins/database/grid/application/grid_bloc.dart';
-import 'package:appflowy/plugins/database/grid/presentation/widgets/shortcuts.dart';
 import 'package:appflowy/plugins/database/tab_bar/tab_bar_view.dart';
+import 'package:appflowy/shared/flowy_error_page.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/workspace/application/action_navigation/action_navigation_bloc.dart';
+import 'package:appflowy/workspace/application/view/view_lock_status_bloc.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
@@ -18,7 +17,7 @@ import 'package:collection/collection.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flowy_infra_ui/widget/error_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
@@ -43,6 +42,7 @@ class MobileGridTabBarBuilderImpl extends DatabaseTabBarItemBuilder {
       view: view,
       databaseController: controller,
       initialRowId: initialRowId,
+      shrinkWrap: shrinkWrap,
     );
   }
 
@@ -69,12 +69,14 @@ class MobileGridPage extends StatefulWidget {
     required this.databaseController,
     this.onDeleted,
     this.initialRowId,
+    this.shrinkWrap = false,
   });
 
   final ViewPB view;
   final DatabaseController databaseController;
   final VoidCallback? onDeleted;
   final String? initialRowId;
+  final bool shrinkWrap;
 
   @override
   State<MobileGridPage> createState() => _MobileGridPageState();
@@ -105,10 +107,14 @@ class _MobileGridPageState extends State<MobileGridPage> {
             finish: (result) {
               _openRow(context, widget.initialRowId, true);
               return result.successOrFail.fold(
-                (_) => GridShortcuts(child: GridPageContent(view: widget.view)),
-                (err) => FlowyErrorPage.message(
-                  err.toString(),
-                  howToFix: LocaleKeys.errorDialog_howToFixFallback.tr(),
+                (_) => GridPageContent(
+                  view: widget.view,
+                  shrinkWrap: widget.shrinkWrap,
+                ),
+                (err) => Center(
+                  child: AppFlowyErrorPage(
+                    error: err,
+                  ),
                 ),
               );
             },
@@ -145,9 +151,11 @@ class GridPageContent extends StatefulWidget {
   const GridPageContent({
     super.key,
     required this.view,
+    this.shrinkWrap = false,
   });
 
   final ViewPB view;
+  final bool shrinkWrap;
 
   @override
   State<GridPageContent> createState() => _GridPageContentState();
@@ -175,6 +183,8 @@ class _GridPageContentState extends State<GridPageContent> {
 
   @override
   Widget build(BuildContext context) {
+    final isLocked =
+        context.read<ViewLockStatusBloc?>()?.state.isLocked ?? false;
     return BlocListener<GridBloc, GridState>(
       listenWhen: (previous, current) =>
           previous.createdRow != current.createdRow,
@@ -196,6 +206,7 @@ class _GridPageContentState extends State<GridPageContent> {
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               _GridHeader(
                 contentScrollController: contentScrollController,
@@ -207,11 +218,12 @@ class _GridPageContentState extends State<GridPageContent> {
               ),
             ],
           ),
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: getGridFabs(context),
-          ),
+          if (!widget.shrinkWrap && !isLocked)
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: getGridFabs(context),
+            ),
         ],
       ),
     );
@@ -256,7 +268,7 @@ class _GridRows extends StatelessWidget {
       buildWhen: (previous, current) => previous.fields != current.fields,
       builder: (context, state) {
         final double contentWidth = getMobileGridContentWidth(state.fields);
-        return Expanded(
+        return Flexible(
           child: _WrapScrollView(
             scrollController: scrollController,
             contentWidth: contentWidth,
@@ -305,6 +317,7 @@ class _GridRows extends StatelessWidget {
     return ReorderableListView.builder(
       scrollController: scrollController.verticalController,
       buildDefaultDragHandles: false,
+      shrinkWrap: true,
       proxyDecorator: (child, index, animation) => Material(
         color: Colors.transparent,
         child: child,
@@ -346,7 +359,7 @@ class _GridRows extends StatelessWidget {
 
     final databaseController = context.read<GridBloc>().databaseController;
 
-    final child = MobileGridRow(
+    Widget child = MobileGridRow(
       key: ValueKey(rowMeta.id),
       rowId: rowId,
       isDraggable: isDraggable,
@@ -363,8 +376,16 @@ class _GridRows extends StatelessWidget {
     );
 
     if (animation != null) {
-      return SizeTransition(
+      child = SizeTransition(
         sizeFactor: animation,
+        child: child,
+      );
+    }
+
+    final isLocked =
+        context.read<ViewLockStatusBloc?>()?.state.isLocked ?? false;
+    if (isLocked) {
+      child = IgnorePointer(
         child: child,
       );
     }

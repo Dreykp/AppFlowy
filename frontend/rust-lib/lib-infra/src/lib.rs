@@ -19,7 +19,12 @@ if_wasm! {
   }
 }
 
+#[cfg(feature = "encryption")]
+pub mod encryption;
+#[cfg(feature = "isolate_flutter")]
+pub mod isolate_stream;
 pub mod priority_task;
 pub mod ref_map;
+pub mod stream_util;
 pub mod util;
 pub mod validator_fn;

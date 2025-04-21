@@ -1,14 +1,14 @@
 use collab_database::database::{gen_database_id, gen_row_id, timestamp};
-use collab_database::rows::CreateRowParams;
-use collab_database::views::{
-  CreateDatabaseParams, CreateViewParams, DatabaseLayout, LayoutSettings,
+use collab_database::entity::{CreateDatabaseParams, CreateViewParams};
+use collab_database::fields::select_type_option::{
+  SelectOption, SelectOptionColor, SingleSelectTypeOption,
 };
+use collab_database::rows::CreateRowParams;
+use collab_database::views::{DatabaseLayout, LayoutSettings};
 
 use crate::entities::FieldType;
 use crate::services::cell::{insert_select_option_cell, insert_text_cell};
-use crate::services::field::{
-  FieldBuilder, SelectOption, SelectOptionColor, SingleSelectTypeOption,
-};
+use crate::services::field::FieldBuilder;
 use crate::services::field_settings::default_field_settings_for_fields;
 use crate::services::setting::{BoardLayoutSetting, CalendarLayoutSetting};
 
@@ -35,7 +35,6 @@ pub fn make_default_grid(view_id: &str, name: &str) -> CreateDatabaseParams {
 
   CreateDatabaseParams {
     database_id: database_id.clone(),
-    inline_view_id: view_id.to_string(),
     views: vec![CreateViewParams {
       database_id: database_id.clone(),
       view_id: view_id.to_string(),
@@ -106,7 +105,6 @@ pub fn make_default_board(view_id: &str, name: &str) -> CreateDatabaseParams {
 
   CreateDatabaseParams {
     database_id: database_id.clone(),
-    inline_view_id: view_id.to_string(),
     views: vec![CreateViewParams {
       database_id,
       view_id: view_id.to_string(),
@@ -159,7 +157,6 @@ pub fn make_default_calendar(view_id: &str, name: &str) -> CreateDatabaseParams 
 
   CreateDatabaseParams {
     database_id: database_id.clone(),
-    inline_view_id: view_id.to_string(),
     views: vec![CreateViewParams {
       database_id,
       view_id: view_id.to_string(),

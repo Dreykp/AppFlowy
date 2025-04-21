@@ -133,7 +133,7 @@ enum DatabaseViewSettings {
       filter => FlowySvgs.filter_s,
       sort => FlowySvgs.sort_ascending_s,
       board => FlowySvgs.board_s,
-      calendar => FlowySvgs.date_s,
+      calendar => FlowySvgs.calendar_s,
       duplicate => FlowySvgs.copy_s,
       delete => FlowySvgs.delete_s,
     };
@@ -176,6 +176,7 @@ class DatabaseViewSettingTile extends StatelessWidget {
         return Row(
           children: [
             FlowyText(
+              lineHeight: 1.0,
               databaseLayoutFromViewLayout(view.layout).layoutName,
               color: Theme.of(context).hintColor,
             ),
@@ -234,7 +235,6 @@ class DatabaseViewSettingTile extends StatelessWidget {
         showHeader: true,
         showBackButton: true,
         title: LocaleKeys.grid_settings_properties.tr(),
-        showDivider: true,
         builder: (_) {
           return BlocProvider.value(
             value: context.read<ViewBloc>(),

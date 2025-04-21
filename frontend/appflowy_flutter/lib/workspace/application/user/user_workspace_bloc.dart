@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/shared/feature_flags.dart';
 import 'package:appflowy/user/application/user_listener.dart';
@@ -12,6 +10,7 @@ import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_result/appflowy_result.dart';
 import 'package:collection/collection.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:protobuf/protobuf.dart';
@@ -29,9 +28,9 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
         await event.when(
           initial: () async {
             _listener.start(
-              didUpdateUserWorkspaces: (workspaces) =>
+              onUserWorkspaceListUpdated: (workspaces) =>
                   add(UserWorkspaceEvent.updateWorkspaces(workspaces)),
-              didUpdateUserWorkspace: (workspace) {
+              onUserWorkspaceUpdated: (workspace) {
                 // If currentWorkspace is updated, eg. Icon or Name, we should notify
                 // the UI to render the updated information.
                 final currentWorkspace = state.currentWorkspace;
@@ -45,7 +44,7 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
             final currentWorkspace = result.$1;
             final workspaces = result.$2;
             final isCollabWorkspaceOn =
-                userProfile.authenticator == AuthenticatorPB.AppFlowyCloud &&
+                userProfile.userAuthType == AuthTypePB.Server &&
                     FeatureFlag.collaborativeWorkspace.isOn;
             Log.info(
               'init workspace, current workspace: ${currentWorkspace?.workspaceId}, '
@@ -53,8 +52,12 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
             );
             if (currentWorkspace != null && result.$3 == true) {
               Log.info('init open workspace: ${currentWorkspace.workspaceId}');
-              await _userService.openWorkspace(currentWorkspace.workspaceId);
+              await _userService.openWorkspace(
+                currentWorkspace.workspaceId,
+                currentWorkspace.workspaceAuthType,
+              );
             }
+
             emit(
               state.copyWith(
                 currentWorkspace: currentWorkspace,
@@ -75,12 +78,26 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
 
             emit(
               state.copyWith(
-                currentWorkspace: currentWorkspace,
                 workspaces: workspaces,
               ),
             );
+
+            // try to open the workspace if the current workspace is not the same
+            if (currentWorkspace != null &&
+                currentWorkspace.workspaceId !=
+                    state.currentWorkspace?.workspaceId) {
+              Log.info(
+                'fetch workspaces: try to open workspace: ${currentWorkspace.workspaceId}',
+              );
+              add(
+                OpenWorkspace(
+                  currentWorkspace.workspaceId,
+                  currentWorkspace.workspaceAuthType,
+                ),
+              );
+            }
           },
-          createWorkspace: (name) async {
+          createWorkspace: (name, authType) async {
             emit(
               state.copyWith(
                 actionResult: const UserWorkspaceActionResult(
@@ -90,7 +107,10 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
                 ),
               ),
             );
-            final result = await _userService.createUserWorkspace(name);
+            final result = await _userService.createUserWorkspace(
+              name,
+              authType,
+            );
             final workspaces = result.fold(
               (s) => [...state.workspaces, s],
               (e) => state.workspaces,
@@ -109,7 +129,12 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
             result
               ..onSuccess((s) {
                 Log.info('create workspace success: $s');
-                add(OpenWorkspace(s.workspaceId));
+                add(
+                  OpenWorkspace(
+                    s.workspaceId,
+                    s.workspaceAuthType,
+                  ),
+                );
               })
               ..onFailure((f) {
                 Log.error('create workspace error: $f');
@@ -151,24 +176,37 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
             }
 
             final result = await _userService.deleteWorkspaceById(workspaceId);
-            final workspaces = result.fold(
-              // remove the deleted workspace from the list instead of fetching
-              // the workspaces again
-              (s) => state.workspaces
-                  .where((e) => e.workspaceId != workspaceId)
-                  .toList(),
-              (e) => state.workspaces,
+            // fetch the workspaces again to check if the current workspace is deleted
+            final workspacesResult = await _fetchWorkspaces();
+            final workspaces = workspacesResult.$2;
+            final containsDeletedWorkspace = workspaces.any(
+              (e) => e.workspaceId == workspaceId,
             );
             result
               ..onSuccess((_) {
                 Log.info('delete workspace success: $workspaceId');
                 // if the current workspace is deleted, open the first workspace
                 if (state.currentWorkspace?.workspaceId == workspaceId) {
-                  add(OpenWorkspace(workspaces.first.workspaceId));
+                  add(
+                    OpenWorkspace(
+                      workspaces.first.workspaceId,
+                      workspaces.first.workspaceAuthType,
+                    ),
+                  );
                 }
               })
               ..onFailure((f) {
                 Log.error('delete workspace error: $f');
+                // if the workspace is deleted but return an error, we need to
+                // open the first workspace
+                if (!containsDeletedWorkspace) {
+                  add(
+                    OpenWorkspace(
+                      workspaces.first.workspaceId,
+                      workspaces.first.workspaceAuthType,
+                    ),
+                  );
+                }
               });
             emit(
               state.copyWith(
@@ -181,7 +219,7 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
               ),
             );
           },
-          openWorkspace: (workspaceId) async {
+          openWorkspace: (workspaceId, authType) async {
             emit(
               state.copyWith(
                 actionResult: const UserWorkspaceActionResult(
@@ -191,7 +229,10 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
                 ),
               ),
             );
-            final result = await _userService.openWorkspace(workspaceId);
+            final result = await _userService.openWorkspace(
+              workspaceId,
+              authType,
+            );
             final currentWorkspace = result.fold(
               (s) => state.workspaces.firstWhereOrNull(
                 (e) => e.workspaceId == workspaceId,
@@ -262,6 +303,14 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
             );
           },
           updateWorkspaceIcon: (workspaceId, icon) async {
+            final workspace = state.workspaces.firstWhere(
+              (e) => e.workspaceId == workspaceId,
+            );
+            if (icon == workspace.icon) {
+              Log.info('ignore same icon update');
+              return;
+            }
+
             final result = await _userService.updateWorkspaceIcon(
               workspaceId,
               icon,
@@ -317,7 +366,12 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
                 Log.info('leave workspace success: $workspaceId');
                 // if leaving the current workspace, open the first workspace
                 if (state.currentWorkspace?.workspaceId == workspaceId) {
-                  add(OpenWorkspace(workspaces.first.workspaceId));
+                  add(
+                    OpenWorkspace(
+                      workspaces.first.workspaceId,
+                      workspaces.first.workspaceAuthType,
+                    ),
+                  );
                 }
               })
               ..onFailure((f) {
@@ -387,7 +441,7 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
       )> _fetchWorkspaces() async {
     try {
       final currentWorkspace =
-          await _userService.getCurrentWorkspace().getOrThrow();
+          await UserBackendService.getCurrentWorkspace().getOrThrow();
       final workspaces = await _userService.getWorkspaces().getOrThrow();
       if (workspaces.isEmpty) {
         workspaces.add(convertWorkspacePBToUserWorkspace(currentWorkspace));
@@ -421,12 +475,16 @@ class UserWorkspaceBloc extends Bloc<UserWorkspaceEvent, UserWorkspaceState> {
 class UserWorkspaceEvent with _$UserWorkspaceEvent {
   const factory UserWorkspaceEvent.initial() = Initial;
   const factory UserWorkspaceEvent.fetchWorkspaces() = FetchWorkspaces;
-  const factory UserWorkspaceEvent.createWorkspace(String name) =
-      CreateWorkspace;
+  const factory UserWorkspaceEvent.createWorkspace(
+    String name,
+    AuthTypePB authType,
+  ) = CreateWorkspace;
   const factory UserWorkspaceEvent.deleteWorkspace(String workspaceId) =
       DeleteWorkspace;
-  const factory UserWorkspaceEvent.openWorkspace(String workspaceId) =
-      OpenWorkspace;
+  const factory UserWorkspaceEvent.openWorkspace(
+    String workspaceId,
+    AuthTypePB authType,
+  ) = OpenWorkspace;
   const factory UserWorkspaceEvent.renameWorkspace(
     String workspaceId,
     String name,
@@ -466,6 +524,11 @@ class UserWorkspaceActionResult {
   final UserWorkspaceActionType actionType;
   final bool isLoading;
   final FlowyResult<void, FlowyError>? result;
+
+  @override
+  String toString() {
+    return 'UserWorkspaceActionResult(actionType: $actionType, isLoading: $isLoading, result: $result)';
+  }
 }
 
 @freezed

@@ -1,10 +1,11 @@
 import 'dart:ui';
 
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import 'package:flowy_infra/size.dart';
 import 'package:flowy_infra_ui/style_widget/scrolling/styled_list.dart';
 import 'package:flowy_infra_ui/widget/dialog/dialog_size.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 extension IntoDialog on Widget {
   Future<dynamic> show(BuildContext context) async {
@@ -57,15 +58,17 @@ class StyledDialog extends StatelessWidget {
     );
 
     if (shrinkWrap) {
-      innerContent =
-          IntrinsicWidth(child: IntrinsicHeight(child: innerContent));
+      innerContent = IntrinsicWidth(
+          child: IntrinsicHeight(
+        child: innerContent,
+      ));
     }
 
     return FocusTraversalGroup(
       child: Container(
         margin: margin ?? EdgeInsets.all(Insets.sm * 2),
         alignment: Alignment.center,
-        child: Container(
+        child: ConstrainedBox(
           constraints: BoxConstraints(
             minWidth: DialogSize.minDialogWidth,
             maxHeight: maxHeight ?? double.infinity,
@@ -93,7 +96,7 @@ class Dialogs {
       {required Widget child}) async {
     return await Navigator.of(context).push(
       StyledDialogRoute(
-        barrier: DialogBarrier(color: Colors.black.withOpacity(0.4)),
+        barrier: DialogBarrier(color: Colors.black.withValues(alpha: 0.4)),
         pageBuilder: (BuildContext buildContext, Animation<double> animation,
             Animation<double> secondaryAnimation) {
           return SafeArea(child: child);

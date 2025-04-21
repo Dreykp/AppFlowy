@@ -1,80 +1,156 @@
-use std::sync::Arc;
+#![allow(unused_variables)]
 
-use anyhow::{anyhow, Error};
+use crate::af_cloud::define::LoggedUser;
+use crate::local_server::util::default_encode_collab_for_collab_type;
+use client_api::entity::workspace_dto::PublishInfoView;
+use client_api::entity::PublishInfo;
+use collab::core::origin::CollabOrigin;
+use collab::preclude::Collab;
 use collab_entity::CollabType;
-
+use collab_plugins::local_storage::kv::doc::CollabKVAction;
+use collab_plugins::local_storage::kv::KVTransactionDB;
+use flowy_error::FlowyError;
 use flowy_folder_pub::cloud::{
-  gen_workspace_id, FolderCloudService, FolderCollabParams, FolderData, FolderSnapshot, Workspace,
-  WorkspaceRecord,
+  FolderCloudService, FolderCollabParams, FolderSnapshot, FullSyncCollabParams,
 };
-use lib_infra::future::FutureResult;
-
-use crate::local_server::LocalServerDB;
+use flowy_folder_pub::entities::PublishPayload;
+use lib_infra::async_trait::async_trait;
+use std::sync::Arc;
+use uuid::Uuid;
 
 pub(crate) struct LocalServerFolderCloudServiceImpl {
   #[allow(dead_code)]
-  pub db: Arc<dyn LocalServerDB>,
+  pub logged_user: Arc<dyn LoggedUser>,
 }
 
+#[async_trait]
 impl FolderCloudService for LocalServerFolderCloudServiceImpl {
-  fn create_workspace(&self, uid: i64, name: &str) -> FutureResult<Workspace, Error> {
-    let name = name.to_string();
-    FutureResult::new(async move {
-      Ok(Workspace::new(
-        gen_workspace_id().to_string(),
-        name.to_string(),
-        uid,
-      ))
-    })
-  }
-
-  fn open_workspace(&self, _workspace_id: &str) -> FutureResult<(), Error> {
-    FutureResult::new(async { Ok(()) })
-  }
-
-  fn get_all_workspace(&self) -> FutureResult<Vec<WorkspaceRecord>, Error> {
-    FutureResult::new(async { Ok(vec![]) })
-  }
-
-  fn get_folder_data(
-    &self,
-    _workspace_id: &str,
-    _uid: &i64,
-  ) -> FutureResult<Option<FolderData>, Error> {
-    FutureResult::new(async move { Ok(None) })
-  }
-
-  fn get_folder_snapshots(
+  async fn get_folder_snapshots(
     &self,
     _workspace_id: &str,
     _limit: usize,
-  ) -> FutureResult<Vec<FolderSnapshot>, Error> {
-    FutureResult::new(async move { Ok(vec![]) })
+  ) -> Result<Vec<FolderSnapshot>, FlowyError> {
+    Ok(vec![])
   }
 
-  fn get_folder_doc_state(
+  async fn get_folder_doc_state(
     &self,
-    _workspace_id: &str,
-    _uid: i64,
-    _collab_type: CollabType,
-    _object_id: &str,
-  ) -> FutureResult<Vec<u8>, Error> {
-    FutureResult::new(async {
-      Err(anyhow!(
-        "Local server doesn't support get collab doc state from remote"
-      ))
-    })
+    workspace_id: &Uuid,
+    uid: i64,
+    collab_type: CollabType,
+    object_id: &Uuid,
+  ) -> Result<Vec<u8>, FlowyError> {
+    let object_id = object_id.to_string();
+    let workspace_id = workspace_id.to_string();
+    let collab_db = self.logged_user.get_collab_db(uid)?.upgrade().unwrap();
+    let read_txn = collab_db.read_txn();
+    let is_exist = read_txn.is_exist(uid, &workspace_id.to_string(), &object_id.to_string());
+    if is_exist {
+      // load doc
+      let collab = Collab::new_with_origin(CollabOrigin::Empty, &object_id, vec![], false);
+      read_txn.load_doc(uid, &workspace_id, &object_id, collab.doc())?;
+      let data = collab.encode_collab_v1(|c| {
+        collab_type
+          .validate_require_data(c)
+          .map_err(|err| FlowyError::invalid_data().with_context(err))?;
+        Ok::<_, FlowyError>(())
+      })?;
+      Ok(data.doc_state.to_vec())
+    } else {
+      let data = default_encode_collab_for_collab_type(uid, &object_id, collab_type).await?;
+      drop(read_txn);
+      Ok(data.doc_state.to_vec())
+    }
   }
 
-  fn batch_create_folder_collab_objects(
+  async fn full_sync_collab_object(
     &self,
-    _workspace_id: &str,
-    _objects: Vec<FolderCollabParams>,
-  ) -> FutureResult<(), Error> {
-    FutureResult::new(async { Err(anyhow!("Local server doesn't support create collab")) })
+    workspace_id: &Uuid,
+    params: FullSyncCollabParams,
+  ) -> Result<(), FlowyError> {
+    Ok(())
+  }
+
+  async fn batch_create_folder_collab_objects(
+    &self,
+    workspace_id: &Uuid,
+    objects: Vec<FolderCollabParams>,
+  ) -> Result<(), FlowyError> {
+    Ok(())
   }
 
   fn service_name(&self) -> String {
     "Local".to_string()
+  }
+
+  async fn publish_view(
+    &self,
+    workspace_id: &Uuid,
+    payload: Vec<PublishPayload>,
+  ) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn unpublish_views(
+    &self,
+    workspace_id: &Uuid,
+    view_ids: Vec<Uuid>,
+  ) -> Result<(), FlowyError> {
+    Ok(())
+  }
+
+  async fn get_publish_info(&self, view_id: &Uuid) -> Result<PublishInfo, FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn set_publish_name(
+    &self,
+    workspace_id: &Uuid,
+    view_id: Uuid,
+    new_name: String,
+  ) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn set_publish_namespace(
+    &self,
+    workspace_id: &Uuid,
+    new_namespace: String,
+  ) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn list_published_views(
+    &self,
+    workspace_id: &Uuid,
+  ) -> Result<Vec<PublishInfoView>, FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn get_default_published_view_info(
+    &self,
+    workspace_id: &Uuid,
+  ) -> Result<PublishInfo, FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn set_default_published_view(
+    &self,
+    workspace_id: &Uuid,
+    view_id: uuid::Uuid,
+  ) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn remove_default_published_view(&self, workspace_id: &Uuid) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn get_publish_namespace(&self, workspace_id: &Uuid) -> Result<String, FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn import_zip(&self, _file_path: &str) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
   }
 }

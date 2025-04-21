@@ -5,12 +5,15 @@ import 'package:appflowy/mobile/presentation/bottom_sheet/bottom_sheet.dart';
 import 'package:appflowy/mobile/presentation/widgets/widgets.dart';
 import 'package:appflowy/plugins/database/application/database_controller.dart';
 import 'package:appflowy/plugins/database/application/tab_bar_bloc.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/header/emoji_icon_widget.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
 import 'package:appflowy/workspace/application/view/view_bloc.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
 import 'package:collection/collection.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -162,9 +165,20 @@ class MobileDatabaseViewListButton extends StatelessWidget {
   }
 
   Widget _buildViewIconButton(BuildContext context, ViewPB view) {
+    final iconData = view.icon.toEmojiIconData();
+    Widget icon;
+    if (iconData.isEmpty || iconData.type != FlowyIconType.icon) {
+      icon = view.defaultIcon();
+    } else {
+      icon = RawEmojiIconWidget(
+        emoji: iconData,
+        emojiSize: 14.0,
+        enableColor: false,
+      );
+    }
     return SizedBox.square(
       dimension: 20.0,
-      child: view.defaultIcon(),
+      child: icon,
     );
   }
 
@@ -183,7 +197,7 @@ class MobileDatabaseViewListButton extends StatelessWidget {
         showMobileBottomSheet(
           context,
           showDragHandle: true,
-          backgroundColor: Theme.of(context).colorScheme.background,
+          backgroundColor: AFThemeExtension.of(context).background,
           builder: (_) {
             return BlocProvider<ViewBloc>(
               create: (_) =>

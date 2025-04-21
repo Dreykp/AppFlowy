@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:appflowy/plugins/document/application/document_awareness_metadata.dart';
 import 'package:appflowy/plugins/document/application/document_data_pb_extension.dart';
+import 'package:appflowy/plugins/document/application/document_diff.dart';
 import 'package:appflowy/plugins/document/application/prelude.dart';
 import 'package:appflowy/shared/list_extension.dart';
 import 'package:appflowy/startup/tasks/device_info_task.dart';
@@ -9,17 +10,21 @@ import 'package:appflowy/util/color_generator/color_generator.dart';
 import 'package:appflowy/util/json_print.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-document/protobuf.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
+import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:collection/collection.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 
 class DocumentCollabAdapter {
-  DocumentCollabAdapter(this.editorState, this.docId);
+  DocumentCollabAdapter(
+    this.editorState,
+    this.docId,
+  );
 
   final EditorState editorState;
   final String docId;
+  final DocumentDiff diff = const DocumentDiff();
 
   final _service = DocumentService();
 
@@ -75,13 +80,14 @@ class DocumentCollabAdapter {
       return;
     }
 
-    final ops = diffNodes(editorState.document.root, document.root);
+    final ops = diff.diffDocument(editorState.document, document);
     if (ops.isEmpty) {
       return;
     }
 
-    // Use for debugging, DO NOT REMOVE
-    // prettyPrintJson(ops.map((op) => op.toJson()).toList());
+    if (enableDocumentInternalLog) {
+      prettyPrintJson(ops.map((op) => op.toJson()).toList());
+    }
 
     final transaction = editorState.transaction;
     for (final op in ops) {
@@ -89,18 +95,19 @@ class DocumentCollabAdapter {
     }
     await editorState.apply(transaction, isRemote: true);
 
-    // Use for debugging, DO NOT REMOVE
-    // assert(() {
-    //   final local = editorState.document.root.toJson();
-    //   final remote = document.root.toJson();
-    //   if (!const DeepCollectionEquality().equals(local, remote)) {
-    //     Log.error('Invalid diff status');
-    //     Log.error('Local: $local');
-    //     Log.error('Remote: $remote');
-    //     return false;
-    //   }
-    //   return true;
-    // }());
+    if (enableDocumentInternalLog) {
+      assert(() {
+        final local = editorState.document.root.toJson();
+        final remote = document.root.toJson();
+        if (!const DeepCollectionEquality().equals(local, remote)) {
+          Log.error('Invalid diff status');
+          Log.error('Local: $local');
+          Log.error('Remote: $remote');
+          return false;
+        }
+        return true;
+      }());
+    }
   }
 
   Future<void> forceReload() async {
@@ -183,7 +190,7 @@ class DocumentCollabAdapter {
     for (final state in values) {
       // the following code is only for version 1
       if (state.version != 1 || state.metadata.isEmpty) {
-        return;
+        continue;
       }
       final uid = state.user.uid.toString();
       final did = state.user.deviceId;
@@ -244,9 +251,8 @@ class DocumentCollabAdapter {
       );
       remoteSelections.add(remoteSelection);
     }
-    if (remoteSelections.isNotEmpty) {
-      editorState.remoteSelections.value = remoteSelections;
-    }
+
+    editorState.remoteSelections.value = remoteSelections;
   }
 }
 

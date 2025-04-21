@@ -1,3 +1,5 @@
+use flowy_folder::view_operation::{GatherEncodedCollab, ViewData};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use collab_folder::{FolderData, View};
@@ -5,35 +7,22 @@ use flowy_folder::entities::icon::UpdateViewIconPayloadPB;
 use flowy_folder::event_map::FolderEvent;
 use flowy_folder::event_map::FolderEvent::*;
 use flowy_folder::{entities::*, ViewLayout};
+use flowy_folder_pub::entities::PublishPayload;
 use flowy_search::services::manager::{SearchHandler, SearchType};
 use flowy_user::entities::{
-  AcceptWorkspaceInvitationPB, AddWorkspaceMemberPB, QueryWorkspacePB, RemoveWorkspaceMemberPB,
-  RepeatedWorkspaceInvitationPB, RepeatedWorkspaceMemberPB, WorkspaceMemberInvitationPB,
-  WorkspaceMemberPB,
+  AcceptWorkspaceInvitationPB, QueryWorkspacePB, RemoveWorkspaceMemberPB,
+  RepeatedWorkspaceInvitationPB, RepeatedWorkspaceMemberPB, UserWorkspaceIdPB, UserWorkspacePB,
+  WorkspaceMemberInvitationPB, WorkspaceMemberPB,
 };
 use flowy_user::errors::FlowyError;
 use flowy_user::event_map::UserEvent;
 use flowy_user_pub::entities::Role;
+use uuid::Uuid;
 
 use crate::event_builder::EventBuilder;
 use crate::EventIntegrationTest;
 
 impl EventIntegrationTest {
-  pub async fn add_workspace_member(&self, workspace_id: &str, email: &str) {
-    if let Some(err) = EventBuilder::new(self.clone())
-      .event(UserEvent::AddWorkspaceMember)
-      .payload(AddWorkspaceMemberPB {
-        workspace_id: workspace_id.to_string(),
-        email: email.to_string(),
-      })
-      .async_send()
-      .await
-      .error()
-    {
-      panic!("Add workspace member failed: {:?}", err);
-    }
-  }
-
   pub async fn invite_workspace_member(&self, workspace_id: &str, email: &str, role: Role) {
     EventBuilder::new(self.clone())
       .event(UserEvent::InviteWorkspaceMember)
@@ -43,6 +32,26 @@ impl EventIntegrationTest {
         role: role.into(),
       })
       .async_send()
+      .await;
+  }
+
+  // convenient function to add workspace member by inviting and accepting the invitation
+  pub async fn add_workspace_member(&self, workspace_id: &str, other: &EventIntegrationTest) {
+    let other_email = other.get_user_profile().await.unwrap().email;
+
+    self
+      .invite_workspace_member(workspace_id, &other_email, Role::Member)
+      .await;
+
+    let invitations = other.list_workspace_invitations().await;
+    let target_invi = invitations
+      .items
+      .into_iter()
+      .find(|i| i.workspace_id == workspace_id)
+      .unwrap();
+
+    other
+      .accept_workspace_invitation(&target_invi.invite_id)
       .await;
   }
 
@@ -85,7 +94,7 @@ impl EventIntegrationTest {
 
   pub async fn get_workspace_members(&self, workspace_id: &str) -> Vec<WorkspaceMemberPB> {
     EventBuilder::new(self.clone())
-      .event(UserEvent::GetWorkspaceMember)
+      .event(UserEvent::GetWorkspaceMembers)
       .payload(QueryWorkspacePB {
         workspace_id: workspace_id.to_string(),
       })
@@ -103,6 +112,18 @@ impl EventIntegrationTest {
       .parse::<WorkspacePB>()
   }
 
+  pub async fn get_user_workspace(&self, workspace_id: &str) -> UserWorkspacePB {
+    let payload = UserWorkspaceIdPB {
+      workspace_id: workspace_id.to_string(),
+    };
+    EventBuilder::new(self.clone())
+      .event(UserEvent::GetUserWorkspace)
+      .payload(payload)
+      .async_send()
+      .await
+      .parse::<UserWorkspacePB>()
+  }
+
   pub fn get_folder_search_handler(&self) -> &Arc<dyn SearchHandler> {
     self
       .appflowy_core
@@ -116,16 +137,17 @@ impl EventIntegrationTest {
     let create_view_params = views
       .into_iter()
       .map(|view| CreateViewParams {
-        parent_view_id: view.parent_view_id,
+        parent_view_id: Uuid::from_str(&view.parent_view_id).unwrap(),
         name: view.name,
-        desc: "".to_string(),
         layout: view.layout.into(),
-        view_id: view.id,
-        initial_data: vec![],
+        view_id: Uuid::from_str(&view.id).unwrap(),
+        initial_data: ViewData::Empty,
         meta: Default::default(),
         set_as_current: false,
         index: None,
         section: None,
+        icon: view.icon,
+        extra: view.extra,
       })
       .collect::<Vec<_>>();
 
@@ -133,23 +155,81 @@ impl EventIntegrationTest {
       self
         .appflowy_core
         .folder_manager
-        .create_view_with_params(params)
+        .create_view_with_params(params, true)
         .await
         .unwrap();
     }
   }
 
-  pub fn get_folder_data(&self) -> FolderData {
-    let mutex_folder = self.appflowy_core.folder_manager.get_mutex_folder().clone();
-    let folder_lock_guard = mutex_folder.read();
-    let folder = folder_lock_guard.as_ref().unwrap();
-    let workspace_id = self.appflowy_core.user_manager.workspace_id().unwrap();
-    folder.get_folder_data(&workspace_id).clone().unwrap()
+  /// Create orphan views in the folder.
+  /// Orphan view: the parent_view_id equal to the view_id
+  /// Normally, the orphan view will be created in nested database
+  pub async fn create_orphan_view(&self, name: &str, view_id: &str, layout: ViewLayoutPB) {
+    let payload = CreateOrphanViewPayloadPB {
+      name: name.to_string(),
+      layout,
+      view_id: view_id.to_string(),
+      initial_data: vec![],
+    };
+    EventBuilder::new(self.clone())
+      .event(FolderEvent::CreateOrphanView)
+      .payload(payload)
+      .async_send()
+      .await;
+  }
+
+  pub async fn get_folder_data(&self) -> FolderData {
+    self
+      .appflowy_core
+      .folder_manager
+      .get_folder_data()
+      .await
+      .unwrap()
+  }
+
+  pub async fn get_publish_payload(
+    &self,
+    view_id: &str,
+    include_children: bool,
+  ) -> Vec<PublishPayload> {
+    let manager = self.folder_manager.clone();
+    let payload = manager
+      .get_batch_publish_payload(view_id, None, include_children)
+      .await;
+
+    if payload.is_err() {
+      panic!("Get publish payload failed")
+    }
+
+    payload.unwrap()
+  }
+
+  pub async fn gather_encode_collab_from_disk(
+    &self,
+    view_id: &str,
+    layout: ViewLayout,
+  ) -> GatherEncodedCollab {
+    let view_id = Uuid::from_str(view_id).unwrap();
+    self
+      .folder_manager
+      .gather_publish_encode_collab(&view_id, &layout)
+      .await
+      .unwrap()
   }
 
   pub async fn get_all_workspace_views(&self) -> Vec<ViewPB> {
     EventBuilder::new(self.clone())
       .event(FolderEvent::ReadCurrentWorkspaceViews)
+      .async_send()
+      .await
+      .parse::<RepeatedViewPB>()
+      .items
+  }
+
+  // get all the views in the current workspace, including the views in the trash and the orphan views
+  pub async fn get_all_views(&self) -> Vec<ViewPB> {
+    EventBuilder::new(self.clone())
+      .event(FolderEvent::GetAllViews)
       .async_send()
       .await
       .parse::<RepeatedViewPB>()
@@ -201,17 +281,29 @@ impl EventIntegrationTest {
   }
 
   pub async fn create_view(&self, parent_id: &str, name: String) -> ViewPB {
+    self
+      .create_view_with_layout(parent_id, name, Default::default())
+      .await
+  }
+
+  pub async fn create_view_with_layout(
+    &self,
+    parent_id: &str,
+    name: String,
+    layout: ViewLayoutPB,
+  ) -> ViewPB {
     let payload = CreateViewPayloadPB {
       parent_view_id: parent_id.to_string(),
       name,
-      desc: "".to_string(),
       thumbnail: None,
-      layout: Default::default(),
+      layout,
       initial_data: vec![],
       meta: Default::default(),
       set_as_current: false,
       index: None,
       section: None,
+      view_id: None,
+      extra: None,
     };
     EventBuilder::new(self.clone())
       .event(FolderEvent::CreateView)
@@ -232,13 +324,26 @@ impl EventIntegrationTest {
       .parse::<ViewPB>()
   }
 
-  pub async fn import_data(&self, data: ImportPB) -> ViewPB {
+  pub async fn import_data(&self, data: ImportPayloadPB) -> Vec<ViewPB> {
     EventBuilder::new(self.clone())
       .event(FolderEvent::ImportData)
       .payload(data)
       .async_send()
       .await
-      .parse::<ViewPB>()
+      .parse::<RepeatedViewPB>()
+      .items
+  }
+
+  pub async fn get_view_ancestors(&self, view_id: &str) -> Vec<ViewPB> {
+    EventBuilder::new(self.clone())
+      .event(FolderEvent::GetViewAncestors)
+      .payload(ViewIdPB {
+        value: view_id.to_string(),
+      })
+      .async_send()
+      .await
+      .parse::<RepeatedViewPB>()
+      .items
   }
 }
 
@@ -255,7 +360,6 @@ impl ViewTest {
     let payload = CreateViewPayloadPB {
       parent_view_id: workspace.id.clone(),
       name: "View A".to_string(),
-      desc: "".to_string(),
       thumbnail: Some("http://1.png".to_string()),
       layout: layout.into(),
       initial_data: data,
@@ -263,6 +367,8 @@ impl ViewTest {
       set_as_current: true,
       index: None,
       section: None,
+      view_id: None,
+      extra: None,
     };
 
     let view = EventBuilder::new(sdk.clone())
@@ -290,19 +396,4 @@ impl ViewTest {
   pub async fn new_calendar_view(sdk: &EventIntegrationTest, data: Vec<u8>) -> Self {
     Self::new(sdk, ViewLayout::Calendar, data).await
   }
-}
-
-#[allow(dead_code)]
-async fn create_workspace(sdk: &EventIntegrationTest, name: &str, desc: &str) -> WorkspacePB {
-  let request = CreateWorkspacePayloadPB {
-    name: name.to_owned(),
-    desc: desc.to_owned(),
-  };
-
-  EventBuilder::new(sdk.clone())
-    .event(CreateFolderWorkspace)
-    .payload(request)
-    .async_send()
-    .await
-    .parse::<WorkspacePB>()
 }

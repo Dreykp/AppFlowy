@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
-use collab::core::collab::MutexCollab;
 use collab::core::origin::{CollabClient, CollabOrigin};
 use collab::preclude::Collab;
 use collab_document::document::Document;
 use collab_document::document_data::default_document_data;
 use collab_folder::{Folder, View};
 use collab_plugins::local_storage::kv::KVTransactionDB;
+use diesel::SqliteConnection;
 use semver::Version;
 use tracing::{event, instrument};
 
 use collab_integrate::{CollabKVAction, CollabKVDB, PersistenceError};
 use flowy_error::{FlowyError, FlowyResult};
-use flowy_user_pub::entities::Authenticator;
+use flowy_user_pub::entities::AuthType;
 
 use crate::migrations::migration::UserDataMigration;
 use crate::migrations::util::load_collab;
@@ -26,8 +26,15 @@ impl UserDataMigration for HistoricalEmptyDocumentMigration {
     "historical_empty_document"
   }
 
-  fn applies_to_version(&self, _version: &Version) -> bool {
-    true
+  fn run_when(
+    &self,
+    first_installed_version: &Option<Version>,
+    _current_version: &Version,
+  ) -> bool {
+    match first_installed_version {
+      None => true,
+      Some(version) => version < &Version::new(0, 4, 0),
+    }
   }
 
   #[instrument(name = "HistoricalEmptyDocumentMigration", skip_all, err)]
@@ -35,30 +42,43 @@ impl UserDataMigration for HistoricalEmptyDocumentMigration {
     &self,
     session: &Session,
     collab_db: &Arc<CollabKVDB>,
-    authenticator: &Authenticator,
+    authenticator: &AuthType,
+    _db: &mut SqliteConnection,
   ) -> FlowyResult<()> {
     // - The `empty document` struct has already undergone refactoring prior to the launch of the AppFlowy cloud version.
     // - Consequently, if a user is utilizing the AppFlowy cloud version, there is no need to perform any migration for the `empty document` struct.
     // - This migration step is only necessary for users who are transitioning from a local version of AppFlowy to the cloud version.
-    if !matches!(authenticator, Authenticator::Local) {
+    if !matches!(authenticator, AuthType::Local) {
       return Ok(());
     }
     collab_db.with_write_txn(|write_txn| {
       let origin = CollabOrigin::Client(CollabClient::new(session.user_id, "phantom"));
-      let folder_collab = match load_collab(session.user_id, write_txn, &session.user_workspace.id)
-      {
+      let folder_collab = match load_collab(
+        session.user_id,
+        write_txn,
+        &session.user_workspace.id,
+        &session.user_workspace.id,
+      ) {
         Ok(fc) => fc,
         Err(_) => return Ok(()),
       };
 
       let folder = Folder::open(session.user_id, folder_collab, None)
         .map_err(|err| PersistenceError::Internal(err.into()))?;
-      if let Ok(workspace_id) = folder.try_get_workspace_id() {
-        let migration_views = folder.views.get_views_belong_to(&workspace_id);
+      if let Some(workspace_id) = folder.get_workspace_id() {
+        let migration_views = folder.get_views_belong_to(&workspace_id);
         // For historical reasons, the first level documents are empty. So migrate them by inserting
         // the default document data.
         for view in migration_views {
-          if migrate_empty_document(write_txn, &origin, &view, session.user_id).is_err() {
+          if migrate_empty_document(
+            write_txn,
+            &origin,
+            &view,
+            session.user_id,
+            &session.user_workspace.id,
+          )
+          .is_err()
+          {
             event!(
               tracing::Level::ERROR,
               "Failed to migrate document {}",
@@ -80,25 +100,24 @@ fn migrate_empty_document<'a, W>(
   origin: &CollabOrigin,
   view: &View,
   user_id: i64,
+  workspace_id: &str,
 ) -> Result<(), FlowyError>
 where
   W: CollabKVAction<'a>,
   PersistenceError: From<W::Error>,
 {
   // If the document is not exist, we don't need to migrate it.
-  if load_collab(user_id, write_txn, &view.id).is_err() {
-    let collab = Arc::new(MutexCollab::new(Collab::new_with_origin(
-      origin.clone(),
+  if load_collab(user_id, write_txn, workspace_id, &view.id).is_err() {
+    let collab = Collab::new_with_origin(origin.clone(), &view.id, vec![], false);
+    let document = Document::create_with_data(collab, default_document_data(&view.id))?;
+    let encode = document.encode_collab_v1(|_| Ok::<(), PersistenceError>(()))?;
+    write_txn.flush_doc(
+      user_id,
+      workspace_id,
       &view.id,
-      vec![],
-      false,
-    )));
-    let document = Document::create_with_data(collab, default_document_data())?;
-    let encode = document
-      .get_collab()
-      .lock()
-      .encode_collab_v1(|_| Ok::<(), PersistenceError>(()))?;
-    write_txn.flush_doc_with(user_id, &view.id, &encode.doc_state, &encode.state_vector)?;
+      encode.state_vector.to_vec(),
+      encode.doc_state.to_vec(),
+    )?;
     event!(
       tracing::Level::INFO,
       "Did migrate empty document {}",

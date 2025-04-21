@@ -54,26 +54,17 @@ class SettingsUserViewBloc extends Bloc<SettingsUserEvent, SettingsUserState> {
               );
             });
           },
-          removeUserIcon: () {
-            // Empty Icon URL = No icon
-            _userService.updateUserProfile(iconUrl: "").then((result) {
+          updateUserEmail: (String email) {
+            _userService.updateUserProfile(email: email).then((result) {
               result.fold(
                 (l) => null,
                 (err) => Log.error(err),
               );
             });
           },
-          updateUserOpenAIKey: (openAIKey) {
-            _userService.updateUserProfile(openAIKey: openAIKey).then((result) {
-              result.fold(
-                (l) => null,
-                (err) => Log.error(err),
-              );
-            });
-          },
-          updateUserStabilityAIKey: (stabilityAIKey) {
+          updateUserPassword: (String oldPassword, String newPassword) {
             _userService
-                .updateUserProfile(stabilityAiKey: stabilityAIKey)
+                .updateUserProfile(password: newPassword)
                 .then((result) {
               result.fold(
                 (l) => null,
@@ -81,8 +72,9 @@ class SettingsUserViewBloc extends Bloc<SettingsUserEvent, SettingsUserState> {
               );
             });
           },
-          updateUserEmail: (String email) {
-            _userService.updateUserProfile(email: email).then((result) {
+          removeUserIcon: () {
+            // Empty Icon URL = No icon
+            _userService.updateUserProfile(iconUrl: "").then((result) {
               result.fold(
                 (l) => null,
                 (err) => Log.error(err),
@@ -122,16 +114,20 @@ class SettingsUserViewBloc extends Bloc<SettingsUserEvent, SettingsUserState> {
 @freezed
 class SettingsUserEvent with _$SettingsUserEvent {
   const factory SettingsUserEvent.initial() = _Initial;
-  const factory SettingsUserEvent.updateUserName(String name) = _UpdateUserName;
-  const factory SettingsUserEvent.updateUserEmail(String email) = _UpdateEmail;
-  const factory SettingsUserEvent.updateUserIcon({required String iconUrl}) =
-      _UpdateUserIcon;
+  const factory SettingsUserEvent.updateUserName({
+    required String name,
+  }) = _UpdateUserName;
+  const factory SettingsUserEvent.updateUserEmail({
+    required String email,
+  }) = _UpdateEmail;
+  const factory SettingsUserEvent.updateUserIcon({
+    required String iconUrl,
+  }) = _UpdateUserIcon;
+  const factory SettingsUserEvent.updateUserPassword({
+    required String oldPassword,
+    required String newPassword,
+  }) = _UpdateUserPassword;
   const factory SettingsUserEvent.removeUserIcon() = _RemoveUserIcon;
-  const factory SettingsUserEvent.updateUserOpenAIKey(String openAIKey) =
-      _UpdateUserOpenaiKey;
-  const factory SettingsUserEvent.updateUserStabilityAIKey(
-    String stabilityAIKey,
-  ) = _UpdateUserStabilityAIKey;
   const factory SettingsUserEvent.didReceiveUserProfile(
     UserProfilePB newUserProfile,
   ) = _DidReceiveUserProfile;

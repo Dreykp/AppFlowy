@@ -12,20 +12,20 @@ typedef SelectItemHandler = void Function(
 class InlineActionsMenuItem {
   InlineActionsMenuItem({
     required this.label,
-    this.icon,
+    this.iconBuilder,
     this.keywords,
     this.onSelected,
   });
 
   final String label;
-  final Widget Function(bool onSelected)? icon;
+  final Widget Function(bool onSelected)? iconBuilder;
   final List<String>? keywords;
   final SelectItemHandler? onSelected;
 }
 
 class InlineActionsResult {
   InlineActionsResult({
-    required this.title,
+    this.title,
     required this.results,
     this.startsWithKeywords,
   });
@@ -33,7 +33,9 @@ class InlineActionsResult {
   /// Localized title to be displayed above the results
   /// of the current group.
   ///
-  final String title;
+  /// If null, no title will be displayed.
+  ///
+  final String? title;
 
   /// List of results that will be displayed for this group
   /// made up of [SelectionMenuItem]s.

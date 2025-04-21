@@ -1,19 +1,18 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/core/helpers/url_launcher.dart';
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/shared/appflowy_cache_manager.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/startup/tasks/rust_sdk.dart';
+import 'package:appflowy/util/share_log_files.dart';
+import 'package:appflowy/util/theme_extension.dart';
 import 'package:appflowy/workspace/application/settings/setting_file_importer_bloc.dart';
 import 'package:appflowy/workspace/application/settings/settings_location_cubit.dart';
 import 'package:appflowy/workspace/presentation/home/toast.dart';
+import 'package:appflowy/workspace/presentation/settings/pages/fix_data_widget.dart';
 import 'package:appflowy/workspace/presentation/settings/shared/setting_action.dart';
-import 'package:appflowy/workspace/presentation/settings/shared/settings_alert_dialog.dart';
 import 'package:appflowy/workspace/presentation/settings/shared/settings_body.dart';
 import 'package:appflowy/workspace/presentation/settings/shared/settings_category.dart';
 import 'package:appflowy/workspace/presentation/settings/shared/single_setting_action.dart';
@@ -21,14 +20,13 @@ import 'package:appflowy/workspace/presentation/settings/widgets/files/settings_
 import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
-import 'package:dotted_border/dotted_border.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra/file_picker/file_picker_service.dart';
 import 'package:flowy_infra/theme_extension.dart';
-import 'package:flowy_infra_ui/style_widget/button.dart';
+import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flowy_infra_ui/style_widget/hover.dart';
-import 'package:flowy_infra_ui/style_widget/text.dart';
-import 'package:flowy_infra_ui/widget/spacing.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
@@ -55,17 +53,24 @@ class SettingsManageDataView extends StatelessWidget {
                 actions: [
                   if (state.mapOrNull(didReceivedPath: (_) => true) == true)
                     SettingAction(
-                      icon: const FlowySvg(FlowySvgs.restore_s),
+                      tooltip: LocaleKeys
+                          .settings_manageDataPage_dataStorage_actions_resetTooltip
+                          .tr(),
+                      icon: const FlowySvg(
+                        FlowySvgs.restore_s,
+                        size: Size.square(20),
+                      ),
                       label: LocaleKeys.settings_common_reset.tr(),
-                      onPressed: () => SettingsAlertDialog(
+                      onPressed: () => showConfirmDialog(
+                        context: context,
+                        confirmLabel: LocaleKeys.button_confirm.tr(),
                         title: LocaleKeys
                             .settings_manageDataPage_dataStorage_resetDialog_title
                             .tr(),
-                        subtitle: LocaleKeys
+                        description: LocaleKeys
                             .settings_manageDataPage_dataStorage_resetDialog_description
                             .tr(),
-                        implyLeading: true,
-                        confirm: () async {
+                        onConfirm: () async {
                           final directory =
                               await appFlowyApplicationDataDirectory();
                           final path = directory.path;
@@ -79,10 +84,8 @@ class SettingsManageDataView extends StatelessWidget {
                               .read<SettingsLocationCubit>()
                               .resetDataStoragePathToApplicationDefault();
                           await runAppFlowy(isAnon: true);
-
-                          if (context.mounted) Navigator.of(context).pop();
                         },
-                      ).show(context),
+                      ),
                     ),
                 ],
                 children: state
@@ -104,9 +107,26 @@ class SettingsManageDataView extends StatelessWidget {
               if (kDebugMode) ...[
                 SettingsCategory(
                   title: LocaleKeys.settings_files_exportData.tr(),
-                  children: const [SettingsExportFileWidget()],
+                  children: const [
+                    SettingsExportFileWidget(),
+                    FixDataWidget(),
+                  ],
                 ),
               ],
+              SettingsCategory(
+                title: LocaleKeys.workspace_errorActions_exportLogFiles.tr(),
+                children: [
+                  SingleSettingAction(
+                    labelMaxLines: 4,
+                    label:
+                        LocaleKeys.workspace_errorActions_exportLogFiles.tr(),
+                    buttonLabel: LocaleKeys.settings_files_export.tr(),
+                    onPressed: () {
+                      shareLogFiles(context);
+                    },
+                  ),
+                ],
+              ),
               SettingsCategory(
                 title: LocaleKeys.settings_manageDataPage_cache_title.tr(),
                 children: [
@@ -117,53 +137,37 @@ class SettingsManageDataView extends StatelessWidget {
                     buttonLabel:
                         LocaleKeys.settings_manageDataPage_cache_title.tr(),
                     onPressed: () {
-                      SettingsAlertDialog(
+                      showCancelAndConfirmDialog(
+                        context: context,
                         title: LocaleKeys
                             .settings_manageDataPage_cache_dialog_title
                             .tr(),
-                        subtitle: LocaleKeys
+                        description: LocaleKeys
                             .settings_manageDataPage_cache_dialog_description
                             .tr(),
-                        confirm: () async {
+                        confirmLabel: LocaleKeys.button_ok.tr(),
+                        onConfirm: () async {
+                          // clear all cache
                           await getIt<FlowyCacheManager>().clearAllCache();
+
+                          // check the workspace and space health
+                          await WorkspaceDataManager.checkViewHealth(
+                            dryRun: false,
+                          );
+
                           if (context.mounted) {
-                            showSnackBarMessage(
-                              context,
-                              LocaleKeys
+                            showToastNotification(
+                              message: LocaleKeys
                                   .settings_manageDataPage_cache_dialog_successHint
                                   .tr(),
                             );
-                            Navigator.of(context).pop();
                           }
                         },
-                      ).show(context);
+                      );
                     },
                   ),
                 ],
               ),
-              // Uncomment if we need to enable encryption
-              //   if (userProfile.authenticator == AuthenticatorPB.Supabase) ...[
-              //     const SettingsCategorySpacer(),
-              //     BlocProvider(
-              //       create: (_) => EncryptSecretBloc(user: userProfile),
-              //       child: SettingsCategory(
-              //         title: LocaleKeys.settings_manageDataPage_encryption_title
-              //             .tr(),
-              //         tooltip: LocaleKeys
-              //             .settings_manageDataPage_encryption_tooltip
-              //             .tr(),
-              //         description: userProfile.encryptionType ==
-              //                 EncryptionTypePB.NoEncryption
-              //             ? LocaleKeys
-              //                 .settings_manageDataPage_encryption_descriptionNoEncryption
-              //                 .tr()
-              //             : LocaleKeys
-              //                 .settings_manageDataPage_encryption_descriptionEncrypted
-              //                 .tr(),
-              //         children: [_EncryptDataSetting(userProfile: userProfile)],
-              //       ),
-              //     ),
-              //   ],
             ],
           );
         },
@@ -281,65 +285,22 @@ class _ImportDataFieldState extends State<_ImportDataField> {
           (_) => _showToast(LocaleKeys.settings_menu_importFailed.tr()),
         ),
         builder: (context, state) {
-          return DottedBorder(
-            radius: const Radius.circular(8),
-            dashPattern: const [2, 2],
-            borderType: BorderType.RRect,
-            color: Theme.of(context).colorScheme.primary,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // When dragging files are enabled
-                  // FlowyText.regular('Drag file here or'),
-                  // const VSpace(8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        height: 42,
-                        child: FlowyTextButton(
-                          LocaleKeys.settings_manageDataPage_importData_action
-                              .tr(),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          fontWeight: FontWeight.w600,
-                          radius: BorderRadius.circular(12),
-                          fillColor: Theme.of(context).colorScheme.primary,
-                          hoverColor: const Color(0xFF005483),
-                          fontHoverColor: Colors.white,
-                          onPressed: () async {
-                            final path = await getIt<FilePickerService>()
-                                .getDirectoryPath();
-                            if (path == null || !context.mounted) {
-                              return;
-                            }
+          return SingleSettingAction(
+            label:
+                LocaleKeys.settings_manageDataPage_importData_description.tr(),
+            labelMaxLines: 2,
+            buttonLabel:
+                LocaleKeys.settings_manageDataPage_importData_action.tr(),
+            onPressed: () async {
+              final path = await getIt<FilePickerService>().getDirectoryPath();
+              if (path == null || !context.mounted) {
+                return;
+              }
 
-                            context.read<SettingFileImportBloc>().add(
-                                  SettingFileImportEvent
-                                      .importAppFlowyDataFolder(
-                                    path,
-                                  ),
-                                );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const VSpace(8),
-                  FlowyText.regular(
-                    LocaleKeys.settings_manageDataPage_importData_description
-                        .tr(),
-                    // 'Supported filetypes:\nCSV, Notion, Text, and Markdown',
-                    maxLines: 3,
-                    lineHeight: 1.5,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+              context
+                  .read<SettingFileImportBloc>()
+                  .add(SettingFileImportEvent.importAppFlowyDataFolder(path));
+            },
           );
         },
       ),
@@ -375,6 +336,8 @@ class _CurrentPathState extends State<_CurrentPath> {
 
   @override
   Widget build(BuildContext context) {
+    final isLM = Theme.of(context).isLightMode;
+
     return Column(
       children: [
         Row(
@@ -388,11 +351,13 @@ class _CurrentPathState extends State<_CurrentPath> {
                   resetHoverOnRebuild: false,
                   builder: (_, isHovering) => FlowyText.regular(
                     widget.path,
-                    lineHeight: 1.5,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    lineHeight: 1.5,
                     decoration: isHovering ? TextDecoration.underline : null,
-                    color: const Color(0xFF005483),
+                    color: isLM
+                        ? const Color(0xFF005483)
+                        : Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -456,15 +421,13 @@ class _DataPathActions extends StatelessWidget {
       children: [
         SizedBox(
           height: 42,
-          child: FlowyTextButton(
-            LocaleKeys.settings_manageDataPage_dataStorage_actions_change.tr(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: PrimaryRoundedButton(
+            text: LocaleKeys.settings_manageDataPage_dataStorage_actions_change
+                .tr(),
+            margin: const EdgeInsets.symmetric(horizontal: 24),
             fontWeight: FontWeight.w600,
-            radius: BorderRadius.circular(12),
-            fillColor: Theme.of(context).colorScheme.primary,
-            hoverColor: const Color(0xFF005483),
-            fontHoverColor: Colors.white,
-            onPressed: () async {
+            radius: 12.0,
+            onTap: () async {
               final path = await getIt<FilePickerService>().getDirectoryPath();
               if (!context.mounted || path == null || currentPath == path) {
                 return;
@@ -484,8 +447,8 @@ class _DataPathActions extends StatelessWidget {
               .tr(),
           label:
               LocaleKeys.settings_manageDataPage_dataStorage_actions_open.tr(),
-          icon: const FlowySvg(FlowySvgs.folder_m, size: Size.square(16)),
-          onPressed: () => afLaunchUrlString('file://$currentPath'),
+          icon: const FlowySvg(FlowySvgs.folder_m, size: Size.square(20)),
+          onPressed: () => afLaunchUri(Uri.file(currentPath)),
         ),
       ],
     );

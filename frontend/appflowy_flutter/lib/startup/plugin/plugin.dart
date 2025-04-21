@@ -1,12 +1,12 @@
-library flowy_plugin;
-
-import 'package:flutter/widgets.dart';
+library;
 
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/startup/plugin/plugin.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/workspace/presentation/home/home_stack.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-user/user_profile.pb.dart';
+import 'package:flutter/widgets.dart';
 
 export "./src/sandbox.dart";
 
@@ -18,6 +18,7 @@ enum PluginType {
   board,
   calendar,
   databaseDocument,
+  chat,
 }
 
 typedef PluginId = String;
@@ -57,7 +58,7 @@ abstract class PluginBuilder {
 
   /// The layoutType is used in the backend to determine the layout of the view.
   /// Currently, AppFlowy supports 4 layout types: Document, Grid, Board, Calendar.
-  ViewLayoutPB? get layoutType => ViewLayoutPB.Document;
+  ViewLayoutPB? get layoutType;
 }
 
 abstract class PluginConfig {
@@ -71,14 +72,22 @@ abstract class PluginWidgetBuilder with NavigationItem {
   EdgeInsets get contentPadding =>
       const EdgeInsets.symmetric(horizontal: 40, vertical: 28);
 
-  Widget buildWidget({PluginContext? context, required bool shrinkWrap});
+  Widget buildWidget({
+    required PluginContext context,
+    required bool shrinkWrap,
+    Map<String, dynamic>? data,
+  });
 }
 
 class PluginContext {
-  PluginContext({required this.onDeleted});
+  PluginContext({
+    this.userProfile,
+    this.onDeleted,
+  });
 
   // calls when widget of the plugin get deleted
-  final Function(ViewPB, int?) onDeleted;
+  final Function(ViewPB, int?)? onDeleted;
+  final UserProfilePB? userProfile;
 }
 
 void registerPlugin({required PluginBuilder builder, PluginConfig? config}) {

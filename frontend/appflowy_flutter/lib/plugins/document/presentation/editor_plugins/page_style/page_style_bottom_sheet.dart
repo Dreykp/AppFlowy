@@ -3,6 +3,7 @@ import 'package:appflowy/plugins/document/presentation/editor_plugins/page_style
 import 'package:appflowy/plugins/document/presentation/editor_plugins/page_style/_page_style_icon.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/page_style/_page_style_layout.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/page_style/_page_style_util.dart';
+import 'package:appflowy/shared/icon_emoji_picker/tab.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
@@ -12,9 +13,11 @@ class PageStyleBottomSheet extends StatelessWidget {
   const PageStyleBottomSheet({
     super.key,
     required this.view,
+    required this.tabs,
   });
 
   final ViewPB view;
+  final List<PickerTabType> tabs;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +33,7 @@ class PageStyleBottomSheet extends StatelessWidget {
             fontSize: 14.0,
           ),
           const VSpace(8.0),
-          PageStyleCoverImage(),
+          PageStyleCoverImage(documentId: view.id),
           const VSpace(20.0),
           // layout: font size, line height and font family.
           FlowyText(
@@ -50,6 +53,7 @@ class PageStyleBottomSheet extends StatelessWidget {
           const VSpace(8.0),
           PageStyleIcon(
             view: view,
+            tabs: tabs,
           ),
         ],
       ),

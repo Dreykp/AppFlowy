@@ -164,8 +164,8 @@ pub enum ErrorCode {
   #[error("Sql error")]
   SqlError = 58,
 
-  #[error("Http error")]
-  HttpError = 59,
+  #[error("Network error")]
+  NetworkError = 59,
 
   #[error("The content should not be empty")]
   UnexpectedEmpty = 60,
@@ -257,8 +257,8 @@ pub enum ErrorCode {
   #[error("AppFlowy data folder import error")]
   AppFlowyDataFolderImportError = 89,
 
-  #[error("Cloud request payload too large")]
-  CloudRequestPayloadTooLarge = 90,
+  #[error("payload too large")]
+  PayloadTooLarge = 90,
 
   #[error("Workspace limit exceeded")]
   WorkspaceLimitExceeded = 91,
@@ -280,6 +280,109 @@ pub enum ErrorCode {
 
   #[error("Workspace data not match")]
   WorkspaceDataNotMatch = 97,
+
+  #[error("Local AI error")]
+  LocalAIError = 98,
+
+  #[error("Local AI unavailable")]
+  LocalAIUnavailable = 99,
+
+  #[error("Storage limit exceeded")]
+  FileStorageLimitExceeded = 100,
+
+  #[error("AI Response limit exceeded")]
+  AIResponseLimitExceeded = 101,
+
+  #[error("Duplicate record")]
+  DuplicateSqliteRecord = 102,
+
+  #[error("Response timeout")]
+  ResponseTimeout = 103,
+
+  #[error("Unsupported file format")]
+  UnsupportedFileFormat = 104,
+
+  #[error("AppFlowy LAI not ready")]
+  AppFlowyLAINotReady = 105,
+
+  #[error("Invalid Request")]
+  InvalidRequest = 106,
+
+  #[error("In progress")]
+  // when client receives InProgress, it should retry
+  InProgress = 107,
+
+  #[error("Upload part size exceeds the limit")]
+  SingleUploadLimitExceeded = 108,
+
+  #[error("Group name is empty")]
+  GroupNameIsEmpty = 109,
+
+  #[error("Not available for current workspace plan")]
+  LimitedByWorkspacePlan = 110,
+
+  #[error("Invalid namespace")]
+  InvalidNamespace = 111,
+
+  #[error("Invalid publish name")]
+  InvalidPublishName = 112,
+
+  #[error("Custom namespace requires Pro Plan upgrade")]
+  CustomNamespaceRequirePlanUpgrade = 113,
+
+  #[error("Requested namespace is not allowed")]
+  CustomNamespaceNotAllowed = 114,
+
+  #[error("Requested namespace is already taken")]
+  CustomNamespaceAlreadyTaken = 115,
+
+  #[error("Requested namespace is too short")]
+  CustomNamespaceTooShort = 116,
+
+  #[error("Requested namespace is too long")]
+  CustomNamespaceTooLong = 117,
+
+  #[error("Requested namespace is reserved")]
+  CustomNamespaceReserved = 118,
+
+  #[error("Publish name is already used for another published view")]
+  PublishNameAlreadyExists = 119,
+
+  #[error("Publish name contains one or more invalid characters")]
+  PublishNameInvalidCharacter = 120,
+
+  #[error("Publish name has exceeded the maximum length allowable")]
+  PublishNameTooLong = 121,
+
+  #[error("Requested namespace has one or more invalid characters")]
+  CustomNamespaceInvalidCharacter = 122,
+
+  #[error("AI Service is unavailable")]
+  AIServiceUnavailable = 123,
+
+  #[error("AI Image Response limit exceeded")]
+  AIImageResponseLimitExceeded = 124,
+
+  #[error("AI Max Required")]
+  AIMaxRequired = 125,
+
+  #[error("View is locked")]
+  ViewIsLocked = 126,
+
+  #[error("Request timeout")]
+  RequestTimeout = 127,
+
+  #[error("Local AI is not ready")]
+  LocalAINotReady = 128,
+
+  #[error("MCP error")]
+  MCPError = 129,
+
+  #[error("Local AI disabled")]
+  LocalAIDisabled = 130,
+
+  #[error("User not login")]
+  UserNotLogin = 131,
 }
 
 impl ErrorCode {

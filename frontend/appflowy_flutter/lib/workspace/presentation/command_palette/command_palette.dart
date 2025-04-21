@@ -1,16 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/workspace/application/command_palette/command_palette_bloc.dart';
 import 'package:appflowy/workspace/presentation/command_palette/widgets/recent_views_list.dart';
 import 'package:appflowy/workspace/presentation/command_palette/widgets/search_field.dart';
 import 'package:appflowy/workspace/presentation/command_palette/widgets/search_results_list.dart';
-import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class CommandPalette extends InheritedWidget {
   CommandPalette({
@@ -57,7 +55,7 @@ class _CommandPaletteController extends StatefulWidget {
 }
 
 class _CommandPaletteControllerState extends State<_CommandPaletteController> {
-  late final ValueNotifier<bool> _toggleNotifier = widget.notifier;
+  late ValueNotifier<bool> _toggleNotifier = widget.notifier;
   bool _isOpen = false;
 
   @override
@@ -70,6 +68,16 @@ class _CommandPaletteControllerState extends State<_CommandPaletteController> {
   void dispose() {
     _toggleNotifier.removeListener(_onToggle);
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_CommandPaletteController oldWidget) {
+    if (oldWidget.notifier != widget.notifier) {
+      oldWidget.notifier.removeListener(_onToggle);
+      _toggleNotifier = widget.notifier;
+      _toggleNotifier.addListener(_onToggle);
+    }
+    super.didUpdateWidget(oldWidget);
   }
 
   void _onToggle() {
@@ -105,7 +113,7 @@ class _CommandPaletteControllerState extends State<_CommandPaletteController> {
         },
         shortcuts: {
           LogicalKeySet(
-            PlatformExtension.isMacOS
+            UniversalPlatform.isMacOS
                 ? LogicalKeyboardKey.meta
                 : LogicalKeyboardKey.control,
             LogicalKeyboardKey.keyP,
@@ -126,15 +134,18 @@ class CommandPaletteModal extends StatelessWidget {
       builder: (context, state) => FlowyDialog(
         alignment: Alignment.topCenter,
         insetPadding: const EdgeInsets.only(top: 100),
-        constraints: const BoxConstraints(maxHeight: 420, maxWidth: 510),
+        constraints: const BoxConstraints(
+          maxHeight: 600,
+          maxWidth: 800,
+          minHeight: 600,
+        ),
         expandHeight: false,
         child: shortcutBuilder(
+          // Change mainAxisSize to max so Expanded works correctly.
           Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              SearchField(query: state.query, isLoading: state.isLoading),
-              if ((state.query?.isEmpty ?? true) ||
-                  state.isLoading && state.results.isEmpty) ...[
+              SearchField(query: state.query, isLoading: state.searching),
+              if (state.query?.isEmpty ?? true) ...[
                 const Divider(height: 0),
                 Flexible(
                   child: RecentViewsList(
@@ -142,19 +153,26 @@ class CommandPaletteModal extends StatelessWidget {
                   ),
                 ),
               ],
-              if (state.results.isNotEmpty) ...[
+              if (state.combinedResponseItems.isNotEmpty &&
+                  (state.query?.isNotEmpty ?? false)) ...[
                 const Divider(height: 0),
                 Flexible(
-                  child: SearchResultsList(
+                  child: SearchResultList(
                     trash: state.trash,
-                    results: state.results,
+                    resultItems: state.combinedResponseItems.values.toList(),
+                    resultSummaries: state.resultSummaries,
                   ),
                 ),
+              ]
+              // When there are no results and the query is not empty and not loading,
+              // show the no results message, centered in the available space.
+              else if ((state.query?.isNotEmpty ?? false) &&
+                  !state.searching) ...[
+                const Divider(height: 0),
+                Expanded(
+                  child: const _NoResultsHint(),
+                ),
               ],
-              _CommandPaletteFooter(
-                shouldShow: state.results.isNotEmpty &&
-                    (state.query?.isNotEmpty ?? false),
-              ),
             ],
           ),
         ),
@@ -163,35 +181,16 @@ class CommandPaletteModal extends StatelessWidget {
   }
 }
 
-class _CommandPaletteFooter extends StatelessWidget {
-  const _CommandPaletteFooter({required this.shouldShow});
-
-  final bool shouldShow;
+/// Updated _NoResultsHint now centers its content.
+class _NoResultsHint extends StatelessWidget {
+  const _NoResultsHint();
 
   @override
   Widget build(BuildContext context) {
-    if (!shouldShow) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: AFThemeExtension.of(context).lightGreyHover,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const FlowyText.semibold('TAB', fontSize: 10),
-          ),
-          const HSpace(4),
-          FlowyText(LocaleKeys.commandPalette_navigateHint.tr(), fontSize: 11),
-        ],
+    return Center(
+      child: FlowyText.regular(
+        LocaleKeys.commandPalette_noResultsHint.tr(),
+        textAlign: TextAlign.center,
       ),
     );
   }

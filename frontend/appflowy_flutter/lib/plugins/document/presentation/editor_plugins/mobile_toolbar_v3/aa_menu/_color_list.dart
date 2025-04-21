@@ -22,8 +22,6 @@ Future<void> showTextColorAndBackgroundColorPicker(
   await showMobileBottomSheet(
     context,
     showHeader: true,
-    showCloseButton: false,
-    showDivider: true,
     showDragHandle: true,
     showDoneButton: true,
     barrierColor: Colors.transparent,
@@ -85,10 +83,10 @@ class _TextColorAndBackgroundColorState
           ),
         ),
         const VSpace(6.0),
-        _TextColors(
+        EditorTextColorWidget(
           selectedColor: selectedTextColor?.tryToColor(),
           onSelectedColor: (textColor) async {
-            final hex = textColor.alpha == 0 ? null : textColor.toHex();
+            final hex = textColor.a == 0 ? null : textColor.toHex();
             final selection = widget.selection;
             if (selection.isCollapsed) {
               widget.editorState.updateToggledStyle(
@@ -122,11 +120,10 @@ class _TextColorAndBackgroundColorState
           ),
         ),
         const VSpace(6.0),
-        _BackgroundColors(
+        EditorBackgroundColors(
           selectedColor: selectedBackgroundColor?.tryToColor(),
           onSelectedColor: (backgroundColor) async {
-            final hex =
-                backgroundColor.alpha == 0 ? null : backgroundColor.toHex();
+            final hex = backgroundColor.a == 0 ? null : backgroundColor.toHex();
             final selection = widget.selection;
             if (selection.isCollapsed) {
               widget.editorState.updateToggledStyle(
@@ -154,8 +151,9 @@ class _TextColorAndBackgroundColorState
   }
 }
 
-class _BackgroundColors extends StatelessWidget {
-  const _BackgroundColors({
+class EditorBackgroundColors extends StatelessWidget {
+  const EditorBackgroundColors({
+    super.key,
     this.selectedColor,
     required this.onSelectedColor,
   });
@@ -227,8 +225,9 @@ class _BackgroundColorItem extends StatelessWidget {
   }
 }
 
-class _TextColors extends StatelessWidget {
-  _TextColors({
+class EditorTextColorWidget extends StatelessWidget {
+  EditorTextColorWidget({
+    super.key,
     this.selectedColor,
     required this.onSelectedColor,
   });
@@ -296,7 +295,7 @@ class _TextColorItem extends StatelessWidget {
         child: FlowyText(
           'A',
           fontSize: 24,
-          color: color.alpha == 0 ? null : color,
+          color: color.a == 0 ? null : color,
         ),
       ),
     );

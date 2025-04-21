@@ -134,14 +134,14 @@
   "questionBubble": {
     "shortcuts": "Klávesové zkratky",
     "whatsNew": "Co je nového?",
-    "help": "Pomoc a podpora",
     "markdown": "Markdown",
     "debug": {
       "name": "Debug informace",
       "success": "Debug informace zkopírovány do schránky!",
       "fail": "Nepodařilo se zkopáí"
     },
-    "feedback": "Zpětná vazba"
+    "feedback": "Zpětná vazba",
+    "help": "Pomoc a podpora"
   },
   "menuAppHeader": {
     "moreButtonToolTip": "Smazat, přejmenovat, a další...",
@@ -378,20 +378,9 @@
       "email": "E-mail",
       "tooltipSelectIcon": "Vyberte ikonu",
       "selectAnIcon": "Vyberte ikonu",
-      "pleaseInputYourOpenAIKey": "Prosím vložte svůj OpenAI klíč",
-      "pleaseInputYourStabilityAIKey": "Prosím vložte svůj Stability AI klíč",
-      "clickToLogout": "Klin"
-    },
-    "shortcuts": {
-      "shortcutsLabel": "Klávesové zkratky",
-      "command": "Příkaz",
-      "keyBinding": "Přiřazená klávesa",
-      "addNewCommand": "Přidat nový příkaz",
-      "updateShortcutStep": "Stiskněte požadovanou kombinaci kláves a stiskněte ENTER",
-      "shortcutIsAlreadyUsed": "Tato zkratka je již použita pro: @@",
-      "resetToDefault": "Obnovit výchozí klávesové zkratky",
-      "couldNotLoadErrorMsg": "Nepodařilo se načíst klávesové zkratky, zkuste to znovu",
-      "couldNotSaveErrorMsg": "Nepodařilo seuložit klávesové zkta"
+      "pleaseInputYourOpenAIKey": "Prosím vložte svůj AI klíč",
+      "clickToLogout": "Klin",
+      "pleaseInputYourStabilityAIKey": "Prosím vložte svůj Stability AI klíč"
     },
     "mobile": {
       "personalInfo": "Osobní informace",
@@ -405,6 +394,17 @@
       "userAgreement": "Uživatels",
       "userprofileError": "Nepodařilo se načíst uživatelský profil",
       "userprofileErrorDescription": "Prosím zkuste se odhlásit a znovu přihlásit a zkontrolujte, zda problém přetrvává"
+    },
+    "shortcuts": {
+      "shortcutsLabel": "Klávesové zkratky",
+      "command": "Příkaz",
+      "keyBinding": "Přiřazená klávesa",
+      "addNewCommand": "Přidat nový příkaz",
+      "updateShortcutStep": "Stiskněte požadovanou kombinaci kláves a stiskněte ENTER",
+      "shortcutIsAlreadyUsed": "Tato zkratka je již použita pro: @@",
+      "resetToDefault": "Obnovit výchozí klávesové zkratky",
+      "couldNotLoadErrorMsg": "Nepodařilo se načíst klávesové zkratky, zkuste to znovu",
+      "couldNotSaveErrorMsg": "Nepodařilo seuložit klávesové zkta"
     }
   },
   "grid": {
@@ -606,23 +606,23 @@
       "referencedGrid": "Odkazovaná mřížka",
       "referencedCalendar": "Odkazovaný kalendář",
       "referencedDocument": "Odkazovaný dokument",
-      "autoGeneratorMenuItemName": "OpenAI Writer",
-      "autoGeneratorTitleName": "OpenAI: Zeptej se AI na cokoliv...",
+      "autoGeneratorMenuItemName": "AI Writer",
+      "autoGeneratorTitleName": "AI: Zeptej se AI na cokoliv...",
       "autoGeneratorLearnMore": "Zjistit více",
       "autoGeneratorGenerate": "Vygenerovat",
-      "autoGeneratorHintText": "Zeptat se OpenAI...",
-      "autoGeneratorCantGetOpenAIKey": "Nepodařilo se získat klíč OpenAI",
+      "autoGeneratorHintText": "Zeptat se AI...",
+      "autoGeneratorCantGetOpenAIKey": "Nepodařilo se získat klíč AI",
       "autoGeneratorRewrite": "Přepsat",
       "smartEdit": "AI asistenti",
-      "openAI": "OpenAI",
+      "aI": "AI",
       "smartEditFixSpelling": "Opravit pravopis",
       "warning": "⚠️ odpovědi AI mohou být nepřesné nebo zavádějící.",
       "smartEditSummarize": "Shrnout",
       "smartEditImproveWriting": "Vylepšit styl psaní",
       "smartEditMakeLonger": "Prodloužit",
-      "smartEditCouldNotFetchResult": "Nepodařilo se stáhnout výsledek z OpenAI",
-      "smartEditCouldNotFetchKey": "Nepodařilo se stáhnout klíč OpenAI",
-      "smartEditDisabled": "Propojit s OpenAI v Nastavení",
+      "smartEditCouldNotFetchResult": "Nepodařilo se stáhnout výsledek z AI",
+      "smartEditCouldNotFetchKey": "Nepodařilo se stáhnout klíč AI",
+      "smartEditDisabled": "Propojit s AI v Nastavení",
       "discardResponse": "Opravdu chcete zahodit odpovědi od AI?",
       "createInlineMathEquation": "Vytvořit rovnici",
       "fonts": "Písma",
@@ -678,8 +678,8 @@
         "defaultColor": "Výchozí"
       },
       "image": {
-        "copiedToPasteBoard": "Odkaz na obrázek byl zkopírován do schránky",
-        "addAnImage": "Přidat obrázek"
+        "addAnImage": "Přidat obrázek",
+        "copiedToPasteBoard": "Odkaz na obrázek byl zkopírován do schránky"
       },
       "outline": {
         "addHeadingToCreateOutline": "Přidáním nadpisů vytvoříte obsah dokumentu"
@@ -716,7 +716,7 @@
         "placeholder": "Vlože URL adresu obrázku"
       },
       "ai": {
-        "label": "Vygenerujte obrázek pomocí OpenAI",
+        "label": "Vygenerujte obrázek pomocí AI",
         "placeholder": "Prosím vlo"
       },
       "stability_ai": {
@@ -735,12 +735,12 @@
         "placeholder": "Vložte nebo napište odkaz na obrázek"
       },
       "searchForAnImage": "Hledat obrázek",
-      "pleaseInputYourOpenAIKey": "zadejte prosím svůj OpenAI klíč v Nastavení",
-      "pleaseInputYourStabilityAIKey": "prosím vložte svůjStability AI klíč v Nastavení",
+      "pleaseInputYourOpenAIKey": "zadejte prosím svůj AI klíč v Nastavení",
       "saveImageToGallery": "Uložit obrázek",
       "failedToAddImageToGallery": "Nepodařilo se přidat obrázek do galerie",
       "successToAddImageToGallery": "Obrázek byl úspěšně přidán do galerie",
-      "unableToLoadImage": "Nepodařilo se nahrát obrázek"
+      "unableToLoadImage": "Nepodařilo se nahrát obrázek",
+      "pleaseInputYourStabilityAIKey": "prosím vložte svůjStability AI klíč v Nastavení"
     },
     "codeBlock": {
       "language": {

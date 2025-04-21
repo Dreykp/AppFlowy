@@ -1,9 +1,16 @@
+import 'dart:convert';
+
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/page_item/mobile_view_item.dart';
+import 'package:appflowy/mobile/presentation/presentation.dart';
 import 'package:appflowy/plugins/database/widgets/row/row_detail.dart';
 import 'package:appflowy/plugins/document/presentation/banner.dart';
-import 'package:appflowy/plugins/document/presentation/editor_plugins/header/document_header_node_widget.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/header/document_cover_widget.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/header/emoji_icon_widget.dart';
+import 'package:appflowy/shared/appflowy_network_image.dart';
+import 'package:appflowy/shared/appflowy_network_svg.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
+import 'package:appflowy/shared/icon_emoji_picker/icon_picker.dart';
 import 'package:appflowy/workspace/application/sidebar/folder/folder_bloc.dart';
 import 'package:appflowy/workspace/presentation/home/home_stack.dart';
 import 'package:appflowy/workspace/presentation/home/menu/view/view_item.dart';
@@ -11,11 +18,13 @@ import 'package:appflowy/workspace/presentation/notifications/widgets/notificati
 import 'package:appflowy/workspace/presentation/widgets/date_picker/widgets/reminder_selector.dart';
 import 'package:appflowy/workspace/presentation/widgets/view_title_bar.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
-import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
+import 'package:flowy_svg/flowy_svg.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:string_validator/string_validator.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 import 'util.dart';
 
@@ -25,9 +34,15 @@ const String gettingStarted = 'Getting started';
 extension Expectation on WidgetTester {
   /// Expect to see the home page and with a default read me page.
   Future<void> expectToSeeHomePageWithGetStartedPage() async {
-    final finder = find.byType(HomeStack);
-    await pumpUntilFound(finder);
-    expect(finder, findsOneWidget);
+    if (UniversalPlatform.isDesktopOrWeb) {
+      final finder = find.byType(HomeStack);
+      await pumpUntilFound(finder);
+      expect(finder, findsOneWidget);
+    } else if (UniversalPlatform.isMobile) {
+      final finder = find.byType(MobileHomePage);
+      await pumpUntilFound(finder);
+      expect(finder, findsOneWidget);
+    }
 
     final docFinder = find.textContaining(gettingStarted);
     await pumpUntilFound(docFinder);
@@ -110,7 +125,7 @@ extension Expectation on WidgetTester {
       return;
     }
     final iconWidget = find.byWidgetPredicate(
-      (widget) => widget is EmojiIconWidget && widget.emoji == emoji,
+      (widget) => widget is EmojiIconWidget && widget.emoji.emoji == emoji,
     );
     expect(iconWidget, findsOneWidget);
   }
@@ -165,7 +180,7 @@ extension Expectation on WidgetTester {
         (widget) =>
             widget is SingleInnerViewItem &&
             widget.view.isFavorite &&
-            widget.categoryType == FolderCategoryType.favorite &&
+            widget.spaceType == FolderSpaceType.favorite &&
             widget.view.name == name &&
             widget.view.layout == layout,
         skipOffstage: false,
@@ -175,7 +190,7 @@ extension Expectation on WidgetTester {
         (widget) =>
             widget is SingleInnerViewItem &&
             widget.view.isFavorite &&
-            widget.categoryType == FolderCategoryType.favorite,
+            widget.spaceType == FolderSpaceType.favorite,
       );
 
   Finder findPageName(
@@ -184,7 +199,7 @@ extension Expectation on WidgetTester {
     String? parentName,
     ViewLayoutPB parentLayout = ViewLayoutPB.Document,
   }) {
-    if (PlatformExtension.isDesktop) {
+    if (UniversalPlatform.isDesktop) {
       if (parentName == null) {
         return find.byWidgetPredicate(
           (widget) =>
@@ -216,24 +231,93 @@ extension Expectation on WidgetTester {
     );
   }
 
-  void expectViewHasIcon(String name, ViewLayoutPB layout, String emoji) {
+  void expectViewHasIcon(String name, ViewLayoutPB layout, EmojiIconData data) {
     final pageName = findPageName(
       name,
       layout: layout,
     );
-    final icon = find.descendant(
-      of: pageName,
-      matching: find.text(emoji),
-    );
-    expect(icon, findsOneWidget);
+    final type = data.type;
+    if (type == FlowyIconType.emoji) {
+      final icon = find.descendant(
+        of: pageName,
+        matching: find.text(data.emoji),
+      );
+      expect(icon, findsOneWidget);
+    } else if (type == FlowyIconType.icon) {
+      final iconsData = IconsData.fromJson(jsonDecode(data.emoji));
+      final icon = find.descendant(
+        of: pageName,
+        matching: find.byWidgetPredicate(
+          (w) => w is FlowySvg && w.svgString == iconsData.svgString,
+        ),
+      );
+      expect(icon, findsOneWidget);
+    } else if (type == FlowyIconType.custom) {
+      final isSvg = data.emoji.endsWith('.svg');
+      if (isURL(data.emoji)) {
+        final image = find.descendant(
+          of: pageName,
+          matching: isSvg
+              ? find.byType(FlowyNetworkSvg)
+              : find.byType(FlowyNetworkImage),
+        );
+        expect(image, findsOneWidget);
+      } else {
+        final image = find.descendant(
+          of: pageName,
+          matching: isSvg ? find.byType(SvgPicture) : find.byType(Image),
+        );
+        expect(image, findsOneWidget);
+      }
+    }
   }
 
-  void expectViewTitleHasIcon(String name, ViewLayoutPB layout, String emoji) {
-    final icon = find.descendant(
-      of: find.byType(ViewTitleBar),
-      matching: find.text(emoji),
-    );
-    expect(icon, findsOneWidget);
+  void expectViewTitleHasIcon(
+    String name,
+    ViewLayoutPB layout,
+    EmojiIconData data,
+  ) {
+    final type = data.type;
+    if (type == FlowyIconType.emoji) {
+      final icon = find.descendant(
+        of: find.byType(ViewTitleBar),
+        matching: find.text(data.emoji),
+      );
+      expect(icon, findsOneWidget);
+    } else if (type == FlowyIconType.icon) {
+      final iconsData = IconsData.fromJson(jsonDecode(data.emoji));
+      final icon = find.descendant(
+        of: find.byType(ViewTitleBar),
+        matching: find.byWidgetPredicate(
+          (w) => w is FlowySvg && w.svgString == iconsData.svgString,
+        ),
+      );
+      expect(icon, findsOneWidget);
+    } else if (type == FlowyIconType.custom) {
+      final isSvg = data.emoji.endsWith('.svg');
+      if (isURL(data.emoji)) {
+        final image = find.descendant(
+          of: find.byType(ViewTitleBar),
+          matching: isSvg
+              ? find.byType(FlowyNetworkSvg)
+              : find.byType(FlowyNetworkImage),
+        );
+        expect(image, findsOneWidget);
+      } else {
+        final image = find.descendant(
+          of: find.byType(ViewTitleBar),
+          matching: isSvg
+              ? find.byWidgetPredicate((w) {
+                  if (w is! SvgPicture) return false;
+                  final loader = w.bytesLoader;
+                  if (loader is! SvgFileLoader) return false;
+                  return loader.file.path.endsWith('.svg');
+                })
+              : find.byType(Image),
+        );
+        expect(image, findsOneWidget);
+      }
+    }
   }
 
   void expectSelectedReminder(ReminderOption option) {

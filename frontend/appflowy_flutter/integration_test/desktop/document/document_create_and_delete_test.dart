@@ -1,6 +1,4 @@
-import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -15,14 +13,15 @@ void main() {
       await tester.initializeAppFlowy();
 
       await tester.tapAnonymousSignInButton();
+      final finder = find.text(gettingStarted, findRichText: true);
+      await tester.pumpUntilFound(finder, timeout: const Duration(seconds: 2));
 
       // create a new document
-      await tester.createNewPageWithNameUnderParent();
+      const pageName = 'Test Document';
+      await tester.createNewPageWithNameUnderParent(name: pageName);
 
       // expect to see a new document
-      tester.expectToSeePageName(
-        LocaleKeys.menuAppHeader_defaultNewPageName.tr(),
-      );
+      tester.expectToSeePageName(pageName);
       // and with one paragraph block
       expect(find.byType(ParagraphBlockComponentWidget), findsOneWidget);
     });

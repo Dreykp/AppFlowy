@@ -14,9 +14,10 @@ class DesktopAppearance extends BaseAppearance {
   ) {
     assert(codeFontFamily.isNotEmpty);
 
-    final theme = brightness == Brightness.light
-        ? appTheme.lightTheme
-        : appTheme.darkTheme;
+    fontFamily = fontFamily.isEmpty ? defaultFontFamily : fontFamily;
+
+    final isLight = brightness == Brightness.light;
+    final theme = isLight ? appTheme.lightTheme : appTheme.darkTheme;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
@@ -34,8 +35,6 @@ class DesktopAppearance extends BaseAppearance {
       // Editor: toolbarColor
       onTertiary: theme.toolbarColor,
       tertiaryContainer: theme.questionBubbleBG,
-      background: theme.surface,
-      onBackground: theme.text,
       surface: theme.surface,
       // text&icon color when it is hovered
       onSurface: theme.hoverFG,
@@ -44,18 +43,24 @@ class DesktopAppearance extends BaseAppearance {
       onError: theme.onPrimary,
       error: theme.red,
       outline: theme.shader4,
-      surfaceVariant: theme.sidebarBg,
+      surfaceContainerHighest: theme.sidebarBg,
       shadow: theme.shadow,
     );
 
     // Due to Desktop version has multiple themes, it relies on the current theme to build the ThemeData
     return ThemeData(
+      visualDensity: VisualDensity.standard,
       useMaterial3: false,
       brightness: brightness,
       dialogBackgroundColor: theme.surface,
       textTheme: getTextTheme(
         fontFamily: fontFamily,
         fontColor: theme.text,
+      ),
+      textButtonTheme: const TextButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: WidgetStatePropertyAll(Size.zero),
+        ),
       ),
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: theme.main2,
@@ -76,18 +81,12 @@ class DesktopAppearance extends BaseAppearance {
         contentTextStyle: TextStyle(color: colorScheme.onSurface),
       ),
       scrollbarTheme: ScrollbarThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.any(scrollbarInteractiveStates.contains)) {
-            return theme.shader7;
-          }
-          return theme.shader5;
-        }),
-        thickness: MaterialStateProperty.resolveWith((states) {
-          if (states.any(scrollbarInteractiveStates.contains)) {
-            return 4;
-          }
-          return 3.0;
-        }),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.any(scrollbarInteractiveStates.contains)
+              ? theme.scrollbarHoverColor
+              : theme.scrollbarColor,
+        ),
+        thickness: WidgetStateProperty.resolveWith((_) => 4.0),
         crossAxisMargin: 0.0,
         mainAxisMargin: 6.0,
         radius: Corners.s10Radius,
@@ -104,6 +103,7 @@ class DesktopAppearance extends BaseAppearance {
       indicatorColor: theme.main1,
       cardColor: theme.input,
       colorScheme: colorScheme,
+
       extensions: [
         AFThemeExtension(
           warning: theme.yellow,
@@ -119,6 +119,7 @@ class DesktopAppearance extends BaseAppearance {
           tint9: theme.tint9,
           textColor: theme.text,
           secondaryTextColor: theme.secondaryText,
+          strongText: theme.strongText,
           greyHover: theme.hoverBG1,
           greySelect: theme.bg3,
           lightGreyHover: theme.hoverBG3,
@@ -144,6 +145,13 @@ class DesktopAppearance extends BaseAppearance {
             fontWeight: FontWeight.w400,
             fontColor: theme.hint,
           ),
+          onBackground: theme.text,
+          background: theme.surface,
+          borderColor: theme.borderColor,
+          scrollbarColor: theme.scrollbarColor,
+          scrollbarHoverColor: theme.scrollbarHoverColor,
+          lightIconColor: theme.lightIconColor,
+          toolbarHoverColor: theme.toolbarHoverColor,
         ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,12 +83,12 @@ void main() {
         HeadingBlockKeys.type,
       );
       expect(
-        importedPageEditorState.getNodeAtPath([2])!.type,
+        importedPageEditorState.getNodeAtPath([1])!.type,
         HeadingBlockKeys.type,
       );
       expect(
-        importedPageEditorState.getNodeAtPath([4])!.type,
-        TableBlockKeys.type,
+        importedPageEditorState.getNodeAtPath([2])!.type,
+        SimpleTableBlockKeys.type,
       );
     });
   });

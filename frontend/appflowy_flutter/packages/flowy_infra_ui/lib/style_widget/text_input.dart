@@ -6,8 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class FlowyFormTextInput extends StatelessWidget {
-  static EdgeInsets kDefaultTextInputPadding =
-      EdgeInsets.only(bottom: Insets.sm, top: 4);
+  static EdgeInsets kDefaultTextInputPadding = const EdgeInsets.only(bottom: 2);
 
   final String? label;
   final bool? autoFocus;
@@ -68,7 +67,7 @@ class FlowyFormTextInput extends StatelessWidget {
       hintStyle: Theme.of(context)
           .textTheme
           .bodyMedium!
-          .copyWith(color: Theme.of(context).hintColor.withOpacity(0.7)),
+          .copyWith(color: Theme.of(context).hintColor.withValues(alpha: 0.7)),
       isDense: true,
       inputBorder: const ThinUnderlineBorder(
         borderSide: BorderSide(width: 5, color: Colors.red),
@@ -162,10 +161,12 @@ class StyledSearchTextInputState extends State<StyledSearchTextInput> {
 
   @override
   void initState() {
+    super.initState();
     _controller =
         widget.controller ?? TextEditingController(text: widget.initialValue);
     _focusNode = FocusNode(
-      debugLabel: widget.label ?? '',
+      debugLabel: widget.label,
+      canRequestFocus: true,
       onKeyEvent: (node, event) {
         if (event.logicalKey == LogicalKeyboardKey.escape) {
           widget.onEditingCancel?.call();
@@ -173,23 +174,23 @@ class StyledSearchTextInputState extends State<StyledSearchTextInput> {
         }
         return KeyEventResult.ignored;
       },
-      canRequestFocus: true,
     );
     // Listen for focus out events
-    _focusNode
-        .addListener(() => widget.onFocusChanged?.call(_focusNode.hasFocus));
+    _focusNode.addListener(_onFocusChanged);
     widget.onFocusCreated?.call(_focusNode);
     if (widget.autoFocus ?? false) {
       scheduleMicrotask(() => _focusNode.requestFocus());
     }
-    super.initState();
   }
+
+  void _onFocusChanged() => widget.onFocusChanged?.call(_focusNode.hasFocus);
 
   @override
   void dispose() {
     if (widget.controller == null) {
       _controller.dispose();
     }
+    _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
     super.dispose();
   }
@@ -292,8 +293,10 @@ class ThinUnderlineBorder extends InputBorder {
   bool get isOutline => false;
 
   @override
-  UnderlineInputBorder copyWith(
-      {BorderSide? borderSide, BorderRadius? borderRadius}) {
+  UnderlineInputBorder copyWith({
+    BorderSide? borderSide,
+    BorderRadius? borderRadius,
+  }) {
     return UnderlineInputBorder(
       borderSide: borderSide ?? this.borderSide,
       borderRadius: borderRadius ?? this.borderRadius,
@@ -301,14 +304,12 @@ class ThinUnderlineBorder extends InputBorder {
   }
 
   @override
-  EdgeInsetsGeometry get dimensions {
-    return EdgeInsets.only(bottom: borderSide.width);
-  }
+  EdgeInsetsGeometry get dimensions =>
+      EdgeInsets.only(bottom: borderSide.width);
 
   @override
-  UnderlineInputBorder scale(double t) {
-    return UnderlineInputBorder(borderSide: borderSide.scale(t));
-  }
+  UnderlineInputBorder scale(double t) =>
+      UnderlineInputBorder(borderSide: borderSide.scale(t));
 
   @override
   Path getInnerPath(Rect rect, {TextDirection? textDirection}) {

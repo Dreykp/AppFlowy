@@ -1,28 +1,20 @@
+use collab::util::AnyMapExt;
 use std::cmp::Ordering;
 
-use collab::core::any_map::AnyMapExtension;
-use collab_database::fields::{Field, TypeOptionData, TypeOptionDataBuilder};
+use collab_database::fields::text_type_option::RichTextTypeOption;
+use collab_database::fields::Field;
 use collab_database::rows::{new_cell_builder, Cell};
-use serde::{Deserialize, Serialize};
-
+use collab_database::template::util::ToCellString;
 use flowy_error::{FlowyError, FlowyResult};
 
 use crate::entities::{FieldType, TextFilterPB};
 use crate::services::cell::{stringify_cell, CellDataChangeset, CellDataDecoder};
 use crate::services::field::type_options::util::ProtobufStr;
 use crate::services::field::{
-  TypeOption, TypeOptionCellData, TypeOptionCellDataCompare, TypeOptionCellDataFilter,
-  TypeOptionCellDataSerde, TypeOptionTransform, CELL_DATA,
+  CellDataProtobufEncoder, TypeOption, TypeOptionCellData, TypeOptionCellDataCompare,
+  TypeOptionCellDataFilter, TypeOptionTransform, CELL_DATA,
 };
 use crate::services::sort::SortCondition;
-
-/// For the moment, the `RichTextTypeOptionPB` is empty. The `data` property is not
-/// used yet.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct RichTextTypeOption {
-  #[serde(default)]
-  pub inner: String,
-}
 
 impl TypeOption for RichTextTypeOption {
   type CellData = StringCellData;
@@ -31,41 +23,18 @@ impl TypeOption for RichTextTypeOption {
   type CellFilter = TextFilterPB;
 }
 
-impl From<TypeOptionData> for RichTextTypeOption {
-  fn from(data: TypeOptionData) -> Self {
-    let s = data.get_str_value(CELL_DATA).unwrap_or_default();
-    Self { inner: s }
-  }
-}
-
-impl From<RichTextTypeOption> for TypeOptionData {
-  fn from(data: RichTextTypeOption) -> Self {
-    TypeOptionDataBuilder::new()
-      .insert_str_value(CELL_DATA, data.inner)
-      .build()
-  }
-}
-
 impl TypeOptionTransform for RichTextTypeOption {}
 
-impl TypeOptionCellDataSerde for RichTextTypeOption {
+impl CellDataProtobufEncoder for RichTextTypeOption {
   fn protobuf_encode(
     &self,
     cell_data: <Self as TypeOption>::CellData,
   ) -> <Self as TypeOption>::CellProtobufType {
     ProtobufStr::from(cell_data.0)
   }
-
-  fn parse_cell(&self, cell: &Cell) -> FlowyResult<<Self as TypeOption>::CellData> {
-    Ok(StringCellData::from(cell))
-  }
 }
 
 impl CellDataDecoder for RichTextTypeOption {
-  fn decode_cell(&self, cell: &Cell) -> FlowyResult<<Self as TypeOption>::CellData> {
-    Ok(StringCellData::from(cell))
-  }
-
   fn decode_cell_with_transform(
     &self,
     cell: &Cell,
@@ -79,21 +48,20 @@ impl CellDataDecoder for RichTextTypeOption {
       | FieldType::SingleSelect
       | FieldType::MultiSelect
       | FieldType::Checkbox
-      | FieldType::URL => Some(StringCellData::from(stringify_cell(cell, field))),
+      | FieldType::URL
+      | FieldType::Summary
+      | FieldType::Translate
+      | FieldType::Media
+      | FieldType::Time => Some(StringCellData::from(stringify_cell(cell, field))),
       FieldType::Checklist
       | FieldType::LastEditedTime
       | FieldType::CreatedTime
       | FieldType::Relation => None,
-      FieldType::Summary => Some(StringCellData::from(stringify_cell(cell, field))),
     }
   }
 
   fn stringify_cell_data(&self, cell_data: <Self as TypeOption>::CellData) -> String {
     cell_data.to_string()
-  }
-
-  fn numeric_cell(&self, cell: &Cell) -> Option<f64> {
-    StringCellData::from(cell).0.parse::<f64>().ok()
   }
 }
 
@@ -146,6 +114,11 @@ impl TypeOptionCellDataCompare for RichTextTypeOption {
 
 #[derive(Default, Debug, Clone)]
 pub struct StringCellData(pub String);
+impl StringCellData {
+  pub fn into_inner(self) -> String {
+    self.0
+  }
+}
 impl std::ops::Deref for StringCellData {
   type Target = String;
 
@@ -162,15 +135,15 @@ impl TypeOptionCellData for StringCellData {
 
 impl From<&Cell> for StringCellData {
   fn from(cell: &Cell) -> Self {
-    Self(cell.get_str_value(CELL_DATA).unwrap_or_default())
+    Self(cell.get_as(CELL_DATA).unwrap_or_default())
   }
 }
 
 impl From<StringCellData> for Cell {
   fn from(data: StringCellData) -> Self {
-    new_cell_builder(FieldType::RichText)
-      .insert_str_value(CELL_DATA, data.0)
-      .build()
+    let mut cell = new_cell_builder(FieldType::RichText);
+    cell.insert(CELL_DATA.into(), data.0.into());
+    cell
   }
 }
 
@@ -186,8 +159,8 @@ impl std::convert::From<String> for StringCellData {
   }
 }
 
-impl ToString for StringCellData {
-  fn to_string(&self) -> String {
+impl ToCellString for StringCellData {
+  fn to_cell_string(&self) -> String {
     self.0.clone()
   }
 }

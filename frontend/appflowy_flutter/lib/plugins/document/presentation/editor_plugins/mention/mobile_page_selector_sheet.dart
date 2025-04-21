@@ -1,30 +1,34 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/base/flowy_search_text_field.dart';
 import 'package:appflowy/mobile/presentation/bottom_sheet/show_mobile_bottom_sheet.dart';
 import 'package:appflowy/mobile/presentation/widgets/widgets.dart';
-import 'package:appflowy/plugins/base/emoji/emoji_text.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/header/emoji_icon_widget.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/application/view/view_service.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/style_widget/text.dart';
+import 'package:flutter/material.dart';
 
-Future<String?> showPageSelectorSheet(
+Future<ViewPB?> showPageSelectorSheet(
   BuildContext context, {
   String? currentViewId,
   String? selectedViewId,
+  bool Function(ViewPB view)? filter,
 }) async {
-  return showMobileBottomSheet<String>(
+  filter ??= (v) => !v.isSpace && v.parentViewId.isNotEmpty;
+
+  return showMobileBottomSheet<ViewPB>(
     context,
     title: LocaleKeys.document_mobilePageSelector_title.tr(),
     showHeader: true,
     showCloseButton: true,
     showDragHandle: true,
-    builder: (context) => Container(
-      margin: const EdgeInsets.only(top: 12.0),
+    useSafeArea: false,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    builder: (context) => ConstrainedBox(
       constraints: const BoxConstraints(
         maxHeight: 340,
         minHeight: 80,
@@ -32,16 +36,22 @@ Future<String?> showPageSelectorSheet(
       child: _MobilePageSelectorBody(
         currentViewId: currentViewId,
         selectedViewId: selectedViewId,
+        filter: filter,
       ),
     ),
   );
 }
 
 class _MobilePageSelectorBody extends StatefulWidget {
-  const _MobilePageSelectorBody({this.currentViewId, this.selectedViewId});
+  const _MobilePageSelectorBody({
+    this.currentViewId,
+    this.selectedViewId,
+    this.filter,
+  });
 
   final String? currentViewId;
   final String? selectedViewId;
+  final bool Function(ViewPB view)? filter;
 
   @override
   State<_MobilePageSelectorBody> createState() =>
@@ -79,7 +89,10 @@ class _MobilePageSelectorBodyState extends State<_MobilePageSelectorBody> {
               );
             }
 
-            final views = snapshot.data!;
+            final views = snapshot.data!
+                .where((v) => widget.filter?.call(v) ?? true)
+                .toList();
+
             if (widget.currentViewId != null) {
               views.removeWhere((v) => v.id == widget.currentViewId);
             }
@@ -101,27 +114,27 @@ class _MobilePageSelectorBodyState extends State<_MobilePageSelectorBody> {
             }
 
             return Flexible(
-              child: ListView(
-                children: filtered
-                    .map(
-                      (view) => FlowyOptionTile.checkbox(
-                        leftIcon: view.icon.value.isNotEmpty
-                            ? EmojiText(
-                                emoji: view.icon.value,
-                                fontSize: 18,
-                                textAlign: TextAlign.center,
-                                lineHeight: 1.3,
-                              )
-                            : FlowySvg(
-                                view.layout.icon,
-                                size: const Size.square(20),
-                              ),
-                        text: view.name,
-                        isSelected: view.id == widget.selectedViewId,
-                        onTap: () => Navigator.of(context).pop(view.id),
-                      ),
-                    )
-                    .toList(),
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final view = filtered.elementAt(index);
+                  return FlowyOptionTile.checkbox(
+                    leftIcon: view.icon.value.isNotEmpty
+                        ? RawEmojiIconWidget(
+                            emoji: view.icon.toEmojiIconData(),
+                            emojiSize: 18,
+                          )
+                        : FlowySvg(
+                            view.layout.icon,
+                            size: const Size.square(20),
+                          ),
+                    text: view.name,
+                    showTopBorder: index != 0,
+                    showBottomBorder: false,
+                    isSelected: view.id == widget.selectedViewId,
+                    onTap: () => Navigator.of(context).pop(view),
+                  );
+                },
               ),
             );
           },

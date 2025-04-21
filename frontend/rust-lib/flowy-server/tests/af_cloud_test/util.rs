@@ -1,16 +1,18 @@
 use client_api::ClientConfiguration;
+use collab_plugins::CollabKVDB;
+use flowy_error::{FlowyError, FlowyResult};
+use semver::Version;
 use std::collections::HashMap;
-use std::sync::Arc;
-
-use flowy_error::FlowyResult;
+use std::path::PathBuf;
+use std::sync::{Arc, Weak};
 use uuid::Uuid;
 
-use flowy_server::af_cloud::define::ServerUser;
-use flowy_server::af_cloud::AppFlowyCloudServer;
-use flowy_server::supabase::define::{USER_DEVICE_ID, USER_SIGN_IN_URL};
-use flowy_server_pub::af_cloud_config::AFCloudConfiguration;
-
 use crate::setup_log;
+use flowy_server::af_cloud::define::LoggedUser;
+use flowy_server::af_cloud::AppFlowyCloudServer;
+use flowy_server_pub::af_cloud_config::AFCloudConfiguration;
+use flowy_sqlite::DBConnection;
+use lib_infra::async_trait::async_trait;
 
 /// To run the test, create a .env.ci file in the 'flowy-server' directory and set the following environment variables:
 ///
@@ -28,18 +30,42 @@ pub fn get_af_cloud_config() -> Option<AFCloudConfiguration> {
 
 pub fn af_cloud_server(config: AFCloudConfiguration) -> Arc<AppFlowyCloudServer> {
   let fake_device_id = uuid::Uuid::new_v4().to_string();
+  let logged_user = Arc::new(FakeServerUserImpl) as Arc<dyn LoggedUser>;
   Arc::new(AppFlowyCloudServer::new(
     config,
     true,
     fake_device_id,
-    "0.5.1",
-    Arc::new(FakeServerUserImpl),
+    Version::new(0, 5, 8),
+    // do nothing, just for test
+    Arc::downgrade(&logged_user),
   ))
 }
 
 struct FakeServerUserImpl;
-impl ServerUser for FakeServerUserImpl {
-  fn workspace_id(&self) -> FlowyResult<String> {
+
+#[async_trait]
+impl LoggedUser for FakeServerUserImpl {
+  fn workspace_id(&self) -> FlowyResult<Uuid> {
+    todo!()
+  }
+
+  fn user_id(&self) -> FlowyResult<i64> {
+    todo!()
+  }
+
+  async fn is_local_mode(&self) -> FlowyResult<bool> {
+    Ok(true)
+  }
+
+  fn get_sqlite_db(&self, _uid: i64) -> Result<DBConnection, FlowyError> {
+    todo!()
+  }
+
+  fn get_collab_db(&self, _uid: i64) -> Result<Weak<CollabKVDB>, FlowyError> {
+    todo!()
+  }
+
+  fn application_root_dir(&self) -> Result<PathBuf, FlowyError> {
     todo!()
   }
 }
@@ -81,10 +107,10 @@ pub async fn af_cloud_sign_up_param(
 ) -> HashMap<String, String> {
   let mut params = HashMap::new();
   params.insert(
-    USER_SIGN_IN_URL.to_string(),
+    "sign_in_url".to_string(),
     generate_sign_in_url(email, config).await,
   );
-  params.insert(USER_DEVICE_ID.to_string(), Uuid::new_v4().to_string());
+  params.insert("device_id".to_string(), Uuid::new_v4().to_string());
   params
 }
 

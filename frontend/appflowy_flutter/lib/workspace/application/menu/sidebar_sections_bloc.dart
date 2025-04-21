@@ -54,9 +54,11 @@ class SidebarSectionsBloc
             _initial(userProfile, workspaceId);
             final sectionViews = await _getSectionViews();
             if (sectionViews != null) {
+              final containsSpace = _containsSpace(sectionViews);
               emit(
                 state.copyWith(
                   section: sectionViews,
+                  containsSpace: containsSpace,
                 ),
               );
             }
@@ -65,18 +67,19 @@ class SidebarSectionsBloc
             _reset(userProfile, workspaceId);
             final sectionViews = await _getSectionViews();
             if (sectionViews != null) {
+              final containsSpace = _containsSpace(sectionViews);
               emit(
                 state.copyWith(
                   section: sectionViews,
+                  containsSpace: containsSpace,
                 ),
               );
             }
           },
-          createRootViewInSection: (name, section, desc, index) async {
+          createRootViewInSection: (name, section, index) async {
             final result = await _workspaceService.createView(
               name: name,
               viewSection: section,
-              desc: desc,
               index: index,
             );
             result.fold(
@@ -102,6 +105,8 @@ class SidebarSectionsBloc
               case ViewSectionPB.Public:
                 emit(
                   state.copyWith(
+                    containsSpace: state.containsSpace ||
+                        sectionViews.views.any((view) => view.isSpace),
                     section: state.section.copyWith(
                       publicViews: sectionViews.views,
                     ),
@@ -110,6 +115,8 @@ class SidebarSectionsBloc
               case ViewSectionPB.Private:
                 emit(
                   state.copyWith(
+                    containsSpace: state.containsSpace ||
+                        sectionViews.views.any((view) => view.isSpace),
                     section: state.section.copyWith(
                       privateViews: sectionViews.views,
                     ),
@@ -160,9 +167,11 @@ class SidebarSectionsBloc
             _initial(userProfile, workspaceId);
             final sectionViews = await _getSectionViews();
             if (sectionViews != null) {
+              final containsSpace = _containsSpace(sectionViews);
               emit(
                 state.copyWith(
                   section: sectionViews,
+                  containsSpace: containsSpace,
                 ),
               );
               // try to open the fist view in public section or private section
@@ -229,8 +238,16 @@ class SidebarSectionsBloc
     }
   }
 
+  bool _containsSpace(SidebarSection section) {
+    return section.publicViews.any((view) => view.isSpace) ||
+        section.privateViews.any((view) => view.isSpace);
+  }
+
   void _initial(UserProfilePB userProfile, String workspaceId) {
-    _workspaceService = WorkspaceService(workspaceId: workspaceId);
+    _workspaceService = WorkspaceService(
+      workspaceId: workspaceId,
+      userId: userProfile.id,
+    );
 
     _listener = WorkspaceSectionsListener(
       user: userProfile,
@@ -268,7 +285,6 @@ class SidebarSectionsEvent with _$SidebarSectionsEvent {
   const factory SidebarSectionsEvent.createRootViewInSection({
     required String name,
     required ViewSectionPB viewSection,
-    String? desc,
     int? index,
   }) = _CreateRootViewInSection;
   const factory SidebarSectionsEvent.moveRootView({
@@ -292,6 +308,7 @@ class SidebarSectionsState with _$SidebarSectionsState {
     required SidebarSection section,
     @Default(null) ViewPB? lastCreatedRootView,
     FlowyResult<void, FlowyError>? createRootViewResult,
+    @Default(true) bool containsSpace,
   }) = _SidebarSectionsState;
 
   factory SidebarSectionsState.initial() => const SidebarSectionsState(

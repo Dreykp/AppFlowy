@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/application/view/view_service.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
+import 'package:appflowy_editor/appflowy_editor.dart'
+    hide QuoteBlockComponentBuilder, quoteNode, QuoteBlockKeys;
 import 'package:appflowy_editor_plugins/appflowy_editor_plugins.dart';
 import 'package:collection/collection.dart';
 import 'package:string_validator/string_validator.dart';
@@ -52,7 +54,9 @@ class EditorMigration {
         node = pageNode(children: children);
       }
     } else if (id == 'callout') {
-      final emoji = nodeV0.attributes['emoji'] ?? '📌';
+      final icon = nodeV0.attributes[CalloutBlockKeys.icon] ?? '📌';
+      final iconType = nodeV0.attributes[CalloutBlockKeys.iconType] ??
+          FlowyIconType.emoji.name;
       final delta =
           nodeV0.children.whereType<TextNodeV0>().fold(Delta(), (p, e) {
         final delta = migrateDelta(e.delta);
@@ -62,8 +66,18 @@ class EditorMigration {
         }
         return p..insert('\n');
       });
+      EmojiIconData? emojiIconData;
+      try {
+        emojiIconData =
+            EmojiIconData(FlowyIconType.values.byName(iconType), icon);
+      } catch (e) {
+        Log.error(
+          'migrateNode get EmojiIconData error with :${nodeV0.attributes}',
+          e,
+        );
+      }
       node = calloutNode(
-        emoji: emoji,
+        emoji: emojiIconData,
         delta: delta,
       );
     } else if (id == 'divider') {
@@ -164,18 +178,17 @@ class EditorMigration {
   // Now, the cover is stored in the view.ext.
   static void migrateCoverIfNeeded(
     ViewPB view,
-    EditorState editorState, {
+    Attributes attributes, {
     bool overwrite = false,
   }) async {
     if (view.extra.isNotEmpty && !overwrite) {
       return;
     }
 
-    final root = editorState.document.root;
     final coverType = CoverType.fromString(
-      root.attributes[DocumentHeaderBlockKeys.coverType],
+      attributes[DocumentHeaderBlockKeys.coverType],
     );
-    final coverDetails = root.attributes[DocumentHeaderBlockKeys.coverDetails];
+    final coverDetails = attributes[DocumentHeaderBlockKeys.coverDetails];
 
     Map extra = {};
 
@@ -191,7 +204,13 @@ class EditorMigration {
     } else {
       switch (coverType) {
         case CoverType.asset:
-          // The new version does not support the asset cover.
+          extra = {
+            ViewExtKeys.coverKey: {
+              ViewExtKeys.coverTypeKey:
+                  PageStyleCoverImageType.builtInImage.toString(),
+              ViewExtKeys.coverValueKey: coverDetails,
+            },
+          };
           break;
         case CoverType.color:
           extra = {
@@ -221,6 +240,14 @@ class EditorMigration {
                 },
               };
             }
+          } else {
+            extra = {
+              ViewExtKeys.coverKey: {
+                ViewExtKeys.coverTypeKey:
+                    PageStyleCoverImageType.localImage.toString(),
+                ViewExtKeys.coverValueKey: coverDetails,
+              },
+            };
           }
           break;
         default:

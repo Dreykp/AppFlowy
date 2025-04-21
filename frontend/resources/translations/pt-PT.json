@@ -128,14 +128,14 @@
   "questionBubble": {
     "shortcuts": "Atalhos",
     "whatsNew": "O que há de novo?",
-    "help": "Ajuda & Suporte",
     "markdown": "Remarcação",
     "debug": {
       "name": "Informação de depuração",
       "success": "Copiar informação de depuração para o clipboard!",
       "fail": "Falha em copiar a informação de depuração para o clipboard"
     },
-    "feedback": "Opinião"
+    "feedback": "Opinião",
+    "help": "Ajuda & Suporte"
   },
   "menuAppHeader": {
     "moreButtonToolTip": "Remover, renomear e muito mais...",
@@ -255,8 +255,7 @@
       "inputTextFieldHint": "A sua palavra-chave",
       "historicalUserList": "Histórico de login do utilizador",
       "historicalUserListTooltip": "Esta lista mostrs suas contas anónimas. Pode clicar numa conta para ver os detalhes. Contas anónimas são criadas clicando no botão ‘Começar’",
-      "openHistoricalUser": "Clique para abrir a conta anónima",
-      "supabaseSetting": "Configuração de Supabase"
+      "openHistoricalUser": "Clique para abrir a conta anónima"
     },
     "notifications": {
       "enableNotifications": {
@@ -362,9 +361,9 @@
       "email": "E-mail",
       "tooltipSelectIcon": "Selecione o ícone",
       "selectAnIcon": "Selecione um ícone",
-      "pleaseInputYourOpenAIKey": "por favor insira sua chave OpenAI",
-      "pleaseInputYourStabilityAIKey": "por favor, insira a sua chave Stability AI",
-      "clickToLogout": "Clique para fazer logout"
+      "pleaseInputYourOpenAIKey": "por favor insira sua chave AI",
+      "clickToLogout": "Clique para fazer logout",
+      "pleaseInputYourStabilityAIKey": "por favor, insira a sua chave Stability AI"
     },
     "shortcuts": {
       "shortcutsLabel": "Atalhos",
@@ -561,23 +560,23 @@
       "referencedBoard": "Conselho Referenciado",
       "referencedGrid": "grade referenciada",
       "referencedCalendar": "calendário referenciado",
-      "autoGeneratorMenuItemName": "OpenAI Writer",
-      "autoGeneratorTitleName": "OpenAI: Peça à IA para escrever qualquer coisa...",
+      "autoGeneratorMenuItemName": "AI Writer",
+      "autoGeneratorTitleName": "AI: Peça à IA para escrever qualquer coisa...",
       "autoGeneratorLearnMore": "Saber mais",
       "autoGeneratorGenerate": "Gerar",
-      "autoGeneratorHintText": "Pergunte ao OpenAI...",
-      "autoGeneratorCantGetOpenAIKey": "Não é possível obter a chave OpenAI",
+      "autoGeneratorHintText": "Pergunte ao AI...",
+      "autoGeneratorCantGetOpenAIKey": "Não é possível obter a chave AI",
       "autoGeneratorRewrite": "Reescrever",
       "smartEdit": "Assistentes de IA",
-      "openAI": "OpenAI",
+      "aI": "AI",
       "smartEditFixSpelling": "corrigir ortografia",
       "warning": "⚠️ As respostas da IA podem ser imprecisas ou enganosas.",
       "smartEditSummarize": "Resumir",
       "smartEditImproveWriting": "melhorar a escrita",
       "smartEditMakeLonger": "Faça mais",
-      "smartEditCouldNotFetchResult": "Não foi possível obter o resultado do OpenAI",
-      "smartEditCouldNotFetchKey": "Não foi possível obter a chave OpenAI",
-      "smartEditDisabled": "Conecte OpenAI em Configurações",
+      "smartEditCouldNotFetchResult": "Não foi possível obter o resultado do AI",
+      "smartEditCouldNotFetchKey": "Não foi possível obter a chave AI",
+      "smartEditDisabled": "Conecte AI em Configurações",
       "discardResponse": "Deseja descartar as respostas de IA?",
       "createInlineMathEquation": "Criar equação",
       "toggleList": "Alternar lista",
@@ -625,8 +624,8 @@
         "defaultColor": "Padrão"
       },
       "image": {
-        "copiedToPasteBoard": "O link da imagem foi copiado para a área de transferência",
-        "addAnImage": "Adicione uma imagem"
+        "addAnImage": "Adicione uma imagem",
+        "copiedToPasteBoard": "O link da imagem foi copiado para a área de transferência"
       },
       "outline": {
         "addHeadingToCreateOutline": "Adicione títulos para criar um sumário."
@@ -662,8 +661,8 @@
         "placeholder": "Insira o URL da imagem"
       },
       "ai": {
-        "label": "Gerar imagem da OpenAI",
-        "placeholder": "Por favor, insira o comando para a OpenAI gerar a imagem"
+        "label": "Gerar imagem da AI",
+        "placeholder": "Por favor, insira o comando para a AI gerar a imagem"
       },
       "stability_ai": {
         "label": "Gerar imagem da Stability AI",
@@ -681,7 +680,7 @@
         "placeholder": "Cole ou digite uma hiperligação de imagem"
       },
       "searchForAnImage": "Procure uma imagem",
-      "pleaseInputYourOpenAIKey": "por favor, insira a sua chave OpenAI na página Configurações",
+      "pleaseInputYourOpenAIKey": "por favor, insira a sua chave AI na página Configurações",
       "pleaseInputYourStabilityAIKey": "por favor, insira a sua chave Stability AI na página Configurações"
     },
     "codeBlock": {

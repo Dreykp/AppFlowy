@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-
 import 'package:flowy_infra/theme.dart';
 import 'package:flowy_infra/utils/color_converter.dart';
+import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'dandelion.dart';
@@ -72,6 +71,7 @@ class FlowyColorScheme {
     required this.icon,
     required this.text,
     required this.secondaryText,
+    required this.strongText,
     required this.input,
     required this.hint,
     required this.primary,
@@ -86,6 +86,11 @@ class FlowyColorScheme {
     required this.toggleButtonBGColor,
     required this.calendarWeekendBGColor,
     required this.gridRowCountColor,
+    required this.borderColor,
+    required this.scrollbarColor,
+    required this.scrollbarHoverColor,
+    required this.lightIconColor,
+    required this.toolbarHoverColor,
   });
 
   final Color surface;
@@ -123,6 +128,7 @@ class FlowyColorScheme {
   final Color icon;
   final Color text;
   final Color secondaryText;
+  final Color strongText;
   final Color input;
   final Color hint;
   final Color primary;
@@ -143,8 +149,51 @@ class FlowyColorScheme {
   //grid bottom count color
   final Color gridRowCountColor;
 
+  final Color borderColor;
+
+  final Color scrollbarColor;
+  final Color scrollbarHoverColor;
+
+  final Color lightIconColor;
+  final Color toolbarHoverColor;
+
   factory FlowyColorScheme.fromJson(Map<String, dynamic> json) =>
       _$FlowyColorSchemeFromJson(json);
 
   Map<String, dynamic> toJson() => _$FlowyColorSchemeToJson(this);
+
+  /// Merges the given [json] with the default color scheme
+  /// based on the given [brightness].
+  ///
+  factory FlowyColorScheme.fromJsonSoft(
+    Map<String, dynamic> json, [
+    Brightness brightness = Brightness.light,
+  ]) {
+    final colorScheme = brightness == Brightness.light
+        ? const DefaultColorScheme.light()
+        : const DefaultColorScheme.dark();
+    final defaultMap = colorScheme.toJson();
+    final mergedMap = Map<String, dynamic>.from(defaultMap)..addAll(json);
+
+    return FlowyColorScheme.fromJson(mergedMap);
+  }
+
+  /// Useful in validating that a teheme adheres to the default color scheme.
+  /// Returns the keys that are missing from the [json].
+  ///
+  /// We use this for testing and debugging, and we might make it possible for users to
+  /// check their themes for missing keys in the future.
+  ///
+  /// Sample usage:
+  /// ```dart
+  ///  final lightJson = await jsonDecode(await light.readAsString());
+  ///  final lightMissingKeys = FlowyColorScheme.getMissingKeys(lightJson);
+  /// ```
+  ///
+  static List<String> getMissingKeys(Map<String, dynamic> json) {
+    final defaultKeys = const DefaultColorScheme.light().toJson().keys;
+    final jsonKeys = json.keys;
+
+    return defaultKeys.where((key) => !jsonKeys.contains(key)).toList();
+  }
 }

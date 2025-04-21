@@ -1,16 +1,31 @@
 import 'dart:async';
 
+import 'package:appflowy/workspace/application/settings/plan/workspace_subscription_ext.dart';
 import 'package:appflowy_backend/dispatch/dispatch.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/workspace.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_result/appflowy_result.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/foundation.dart';
 
-class UserBackendService {
-  UserBackendService({
-    required this.userId,
-  });
+abstract class IUserBackendService {
+  Future<FlowyResult<void, FlowyError>> cancelSubscription(
+    String workspaceId,
+    SubscriptionPlanPB plan,
+    String? reason,
+  );
+  Future<FlowyResult<PaymentLinkPB, FlowyError>> createSubscription(
+    String workspaceId,
+    SubscriptionPlanPB plan,
+  );
+}
+
+const _baseBetaUrl = 'https://beta.appflowy.com';
+const _baseProdUrl = 'https://appflowy.com';
+
+class UserBackendService implements IUserBackendService {
+  UserBackendService({required this.userId});
 
   final Int64 userId;
 
@@ -25,8 +40,6 @@ class UserBackendService {
     String? password,
     String? email,
     String? iconUrl,
-    String? openAIKey,
-    String? stabilityAiKey,
   }) {
     final payload = UpdateUserProfilePayloadPB.create()..id = userId;
 
@@ -46,14 +59,6 @@ class UserBackendService {
       payload.iconUrl = iconUrl;
     }
 
-    if (openAIKey != null) {
-      payload.openaiKey = openAIKey;
-    }
-
-    if (stabilityAiKey != null) {
-      payload.stabilityAiKey = stabilityAiKey;
-    }
-
     return UserEventUpdateUserProfile(payload).send();
   }
 
@@ -69,6 +74,26 @@ class UserBackendService {
   ) async {
     final payload = MagicLinkSignInPB(email: email, redirectTo: redirectTo);
     return UserEventMagicLinkSignIn(payload).send();
+  }
+
+  static Future<FlowyResult<GotrueTokenResponsePB, FlowyError>>
+      signInWithPasscode(
+    String email,
+    String passcode,
+  ) async {
+    final payload = PasscodeSignInPB(email: email, passcode: passcode);
+    return UserEventPasscodeSignIn(payload).send();
+  }
+
+  Future<FlowyResult<void, FlowyError>> signInWithPassword(
+    String email,
+    String password,
+  ) {
+    final payload = SignInPayloadPB(
+      email: email,
+      password: password,
+    );
+    return UserEventSignInWithEmailPassword(payload).send();
   }
 
   static Future<FlowyResult<void, FlowyError>> signOut() {
@@ -96,28 +121,18 @@ class UserBackendService {
     });
   }
 
-  Future<FlowyResult<void, FlowyError>> openWorkspace(String workspaceId) {
-    final payload = UserWorkspaceIdPB.create()..workspaceId = workspaceId;
+  Future<FlowyResult<void, FlowyError>> openWorkspace(
+    String workspaceId,
+    AuthTypePB authType,
+  ) {
+    final payload = OpenUserWorkspacePB()
+      ..workspaceId = workspaceId
+      ..authType = authType;
     return UserEventOpenWorkspace(payload).send();
   }
 
-  Future<FlowyResult<WorkspacePB, FlowyError>> getCurrentWorkspace() {
+  static Future<FlowyResult<WorkspacePB, FlowyError>> getCurrentWorkspace() {
     return FolderEventReadCurrentWorkspace().send().then((result) {
-      return result.fold(
-        (workspace) => FlowyResult.success(workspace),
-        (error) => FlowyResult.failure(error),
-      );
-    });
-  }
-
-  Future<FlowyResult<WorkspacePB, FlowyError>> createWorkspace(
-    String name,
-    String desc,
-  ) {
-    final request = CreateWorkspacePayloadPB.create()
-      ..name = name
-      ..desc = desc;
-    return FolderEventCreateFolderWorkspace(request).send().then((result) {
       return result.fold(
         (workspace) => FlowyResult.success(workspace),
         (error) => FlowyResult.failure(error),
@@ -127,8 +142,11 @@ class UserBackendService {
 
   Future<FlowyResult<UserWorkspacePB, FlowyError>> createUserWorkspace(
     String name,
+    AuthTypePB authType,
   ) {
-    final request = CreateWorkspacePB.create()..name = name;
+    final request = CreateWorkspacePB.create()
+      ..name = name
+      ..authType = authType;
     return UserEventCreateWorkspace(request).send();
   }
 
@@ -164,7 +182,7 @@ class UserBackendService {
     String workspaceId,
   ) async {
     final data = QueryWorkspacePB()..workspaceId = workspaceId;
-    return UserEventGetWorkspaceMember(data).send();
+    return UserEventGetWorkspaceMembers(data).send();
   }
 
   Future<FlowyResult<void, FlowyError>> addWorkspaceMember(
@@ -218,5 +236,67 @@ class UserBackendService {
   ) async {
     final data = UserWorkspaceIdPB.create()..workspaceId = workspaceId;
     return UserEventLeaveWorkspace(data).send();
+  }
+
+  static Future<FlowyResult<WorkspaceSubscriptionInfoPB, FlowyError>>
+      getWorkspaceSubscriptionInfo(String workspaceId) {
+    final params = UserWorkspaceIdPB.create()..workspaceId = workspaceId;
+    return UserEventGetWorkspaceSubscriptionInfo(params).send();
+  }
+
+  Future<FlowyResult<WorkspaceMemberPB, FlowyError>>
+      getWorkspaceMember() async {
+    final data = WorkspaceMemberIdPB.create()..uid = userId;
+
+    return UserEventGetMemberInfo(data).send();
+  }
+
+  @override
+  Future<FlowyResult<PaymentLinkPB, FlowyError>> createSubscription(
+    String workspaceId,
+    SubscriptionPlanPB plan,
+  ) {
+    final request = SubscribeWorkspacePB()
+      ..workspaceId = workspaceId
+      ..recurringInterval = RecurringIntervalPB.Year
+      ..workspaceSubscriptionPlan = plan
+      ..successUrl =
+          '${kDebugMode ? _baseBetaUrl : _baseProdUrl}/after-payment?plan=${plan.toRecognizable()}';
+    return UserEventSubscribeWorkspace(request).send();
+  }
+
+  @override
+  Future<FlowyResult<void, FlowyError>> cancelSubscription(
+    String workspaceId,
+    SubscriptionPlanPB plan, [
+    String? reason,
+  ]) {
+    final request = CancelWorkspaceSubscriptionPB()
+      ..workspaceId = workspaceId
+      ..plan = plan;
+
+    if (reason != null) {
+      request.reason = reason;
+    }
+
+    return UserEventCancelWorkspaceSubscription(request).send();
+  }
+
+  Future<FlowyResult<void, FlowyError>> updateSubscriptionPeriod(
+    String workspaceId,
+    SubscriptionPlanPB plan,
+    RecurringIntervalPB interval,
+  ) {
+    final request = UpdateWorkspaceSubscriptionPaymentPeriodPB()
+      ..workspaceId = workspaceId
+      ..plan = plan
+      ..recurringInterval = interval;
+
+    return UserEventUpdateWorkspaceSubscriptionPaymentPeriod(request).send();
+  }
+
+  // NOTE: This function is irreversible and will delete the current user's account.
+  static Future<FlowyResult<void, FlowyError>> deleteCurrentAccount() {
+    return UserEventDeleteAccount().send();
   }
 }

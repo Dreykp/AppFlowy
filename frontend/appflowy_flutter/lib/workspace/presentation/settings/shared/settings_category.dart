@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/generated/flowy_svgs.g.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
+import 'package:flutter/material.dart';
 
 /// Renders a simple category taking a title and the list
 /// of children (settings) to be rendered.
@@ -12,6 +11,7 @@ class SettingsCategory extends StatelessWidget {
     super.key,
     required this.title,
     this.description,
+    this.descriptionColor,
     this.tooltip,
     this.actions,
     required this.children,
@@ -19,21 +19,25 @@ class SettingsCategory extends StatelessWidget {
 
   final String title;
   final String? description;
+  final Color? descriptionColor;
   final String? tooltip;
   final List<Widget>? actions;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            FlowyText.semibold(
+            Text(
               title,
+              style: theme.textStyle.heading4.enhanced(
+                color: theme.textColorScheme.primary,
+              ),
               maxLines: 2,
-              fontSize: 16,
               overflow: TextOverflow.ellipsis,
             ),
             if (tooltip != null) ...[
@@ -47,13 +51,14 @@ class SettingsCategory extends StatelessWidget {
             if (actions != null) ...actions!,
           ],
         ),
-        const VSpace(8),
+        const VSpace(16),
         if (description?.isNotEmpty ?? false) ...[
           FlowyText.regular(
             description!,
             maxLines: 4,
             fontSize: 12,
             overflow: TextOverflow.ellipsis,
+            color: descriptionColor,
           ),
           const VSpace(8),
         ],

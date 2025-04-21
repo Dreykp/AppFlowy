@@ -1,7 +1,7 @@
+import 'package:appflowy/plugins/database/grid/presentation/grid_page.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/mention/mention_page_block.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
 import 'package:flowy_infra/uuid.dart';
-import 'package:flowy_infra_ui/widget/error_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -92,7 +92,21 @@ void main() {
       );
       expect(finder, findsOneWidget);
       await tester.tapButton(finder);
-      expect(find.byType(FlowyErrorPage), findsOneWidget);
+      expect(find.byType(GridPage), findsOneWidget);
+    });
+
+    testWidgets('insert a inline page and type something after the page',
+        (tester) async {
+      await tester.initializeAppFlowy();
+      await tester.tapAnonymousSignInButton();
+
+      await insertInlinePage(tester, ViewLayoutPB.Grid);
+
+      await tester.editor.tapLineOfEditorAt(0);
+      const text = 'Hello World';
+      await tester.ime.insertText(text);
+
+      expect(find.textContaining(text, findRichText: true), findsOneWidget);
     });
   });
 }

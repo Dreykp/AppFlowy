@@ -6,11 +6,15 @@ import 'package:appflowy/core/config/kv_keys.dart';
 import 'package:appflowy/startup/startup.dart';
 
 class WindowSizeManager {
-  static const double minWindowHeight = 600.0;
-  static const double minWindowWidth = 800.0;
+  static const double minWindowHeight = 640.0;
+  static const double minWindowWidth = 640.0;
   // Preventing failed assertion due to Texture Descriptor Validation
   static const double maxWindowHeight = 8192.0;
   static const double maxWindowWidth = 8192.0;
+
+  // Default windows size
+  static const double defaultWindowHeight = 960.0;
+  static const double defaultWindowWidth = 1280.0;
 
   static const double maxScaleFactor = 2.0;
   static const double minScaleFactor = 0.5;
@@ -35,7 +39,10 @@ class WindowSizeManager {
 
   Future<Size> getSize() async {
     final defaultWindowSize = jsonEncode(
-      {WindowSizeManager.height: 600.0, WindowSizeManager.width: 800.0},
+      {
+        WindowSizeManager.height: defaultWindowHeight,
+        WindowSizeManager.width: defaultWindowWidth,
+      },
     );
     final windowSize = await getIt<KeyValueStorage>().get(KVKeys.windowSize);
     final size = json.decode(
@@ -82,5 +89,20 @@ class WindowSizeManager {
       KVKeys.scaleFactor,
       '${scaleFactor.clamp(minScaleFactor, maxScaleFactor)}',
     );
+  }
+
+  /// Set the window maximized status
+  Future<void> setWindowMaximized(bool isMaximized) async {
+    await getIt<KeyValueStorage>()
+        .set(KVKeys.windowMaximized, isMaximized.toString());
+  }
+
+  /// Get the window maximized status
+  Future<bool> getWindowMaximized() async {
+    return await getIt<KeyValueStorage>().getWithFormat<bool>(
+          KVKeys.windowMaximized,
+          (v) => bool.tryParse(v) ?? false,
+        ) ??
+        false;
   }
 }

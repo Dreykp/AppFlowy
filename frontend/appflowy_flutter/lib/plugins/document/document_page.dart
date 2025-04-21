@@ -1,36 +1,50 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
+import 'package:appflowy/plugins/document/application/document_appearance_cubit.dart';
 import 'package:appflowy/plugins/document/application/document_bloc.dart';
 import 'package:appflowy/plugins/document/presentation/banner.dart';
-import 'package:appflowy/plugins/document/presentation/editor_notification.dart';
+import 'package:appflowy/plugins/document/presentation/editor_drop_handler.dart';
 import 'package:appflowy/plugins/document/presentation/editor_page.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/ai/widgets/ai_writer_scroll_wrapper.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/cover/document_immersive_cover.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/shared_context/shared_context.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/transaction_handler/editor_transaction_service.dart';
 import 'package:appflowy/plugins/document/presentation/editor_style.dart';
+import 'package:appflowy/shared/flowy_error_page.dart';
+import 'package:appflowy/shared/icon_emoji_picker/tab.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/workspace/application/action_navigation/action_navigation_bloc.dart';
 import 'package:appflowy/workspace/application/action_navigation/navigation_action.dart';
 import 'package:appflowy/workspace/application/view/prelude.dart';
+import 'package:appflowy/workspace/application/view/view_ext.dart';
+import 'package:appflowy/workspace/application/view/view_lock_status_bloc.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
+import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flowy_infra_ui/widget/error_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:provider/provider.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class DocumentPage extends StatefulWidget {
   const DocumentPage({
     super.key,
     required this.view,
     required this.onDeleted,
+    required this.tabs,
     this.initialSelection,
+    this.initialBlockId,
+    this.fixedTitle,
   });
 
   final ViewPB view;
   final VoidCallback onDeleted;
   final Selection? initialSelection;
+  final String? initialBlockId;
+  final String? fixedTitle;
+  final List<PickerTabType> tabs;
 
   @override
   State<DocumentPage> createState() => _DocumentPageState();
@@ -39,6 +53,7 @@ class DocumentPage extends StatefulWidget {
 class _DocumentPageState extends State<DocumentPage>
     with WidgetsBindingObserver {
   EditorState? editorState;
+  Selection? initialSelection;
   late final documentBloc = DocumentBloc(documentId: widget.view.id)
     ..add(const DocumentEvent.initial());
 
@@ -46,14 +61,13 @@ class _DocumentPageState extends State<DocumentPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    EditorNotification.addListener(_onEditorNotification);
   }
 
   @override
   void dispose() {
-    EditorNotification.removeListener(_onEditorNotification);
     WidgetsBinding.instance.removeObserver(this);
     documentBloc.close();
+
     super.dispose();
   }
 
@@ -73,103 +87,178 @@ class _DocumentPageState extends State<DocumentPage>
       providers: [
         BlocProvider.value(value: getIt<ActionNavigationBloc>()),
         BlocProvider.value(value: documentBloc),
+        BlocProvider.value(
+          value: ViewLockStatusBloc(view: widget.view)
+            ..add(ViewLockStatusEvent.initial()),
+        ),
+        BlocProvider(
+          create: (context) =>
+              ViewBloc(view: widget.view)..add(const ViewEvent.initial()),
+          lazy: false,
+        ),
       ],
-      child: BlocBuilder<DocumentBloc, DocumentState>(
-        builder: (context, state) {
-          if (state.isLoading) {
-            return const Center(child: CircularProgressIndicator.adaptive());
+      child: BlocConsumer<ViewLockStatusBloc, ViewLockStatusState>(
+        listenWhen: (prev, curr) => curr.isLocked != prev.isLocked,
+        listener: (context, lockStatusState) {
+          if (lockStatusState.isLoadingLockStatus) {
+            return;
           }
+          editorState?.editable = !lockStatusState.isLocked;
+        },
+        builder: (context, lockStatusState) {
+          return BlocBuilder<DocumentBloc, DocumentState>(
+            buildWhen: shouldRebuildDocument,
+            builder: (context, state) {
+              if (state.isLoading) {
+                return const Center(
+                  child: CircularProgressIndicator.adaptive(),
+                );
+              }
 
-          final editorState = state.editorState;
-          this.editorState = editorState;
-          final error = state.error;
-          if (error != null || editorState == null) {
-            Log.error(error);
-            return FlowyErrorPage.message(
-              error.toString(),
-              howToFix: LocaleKeys.errorDialog_howToFixFallback.tr(),
-            );
-          }
+              final editorState = state.editorState;
+              this.editorState = editorState;
+              final error = state.error;
+              if (error != null || editorState == null) {
+                Log.error(error);
+                return Center(child: AppFlowyErrorPage(error: error));
+              }
 
-          if (state.forceClose) {
-            widget.onDeleted();
-            return const SizedBox.shrink();
-          }
+              if (state.forceClose) {
+                widget.onDeleted();
+                return const SizedBox.shrink();
+              }
 
-          return BlocListener<ActionNavigationBloc, ActionNavigationState>(
-            listenWhen: (_, curr) => curr.action != null,
-            listener: _onNotificationAction,
-            child: _buildEditorPage(context, state),
+              return MultiBlocListener(
+                listeners: [
+                  BlocListener<ViewLockStatusBloc, ViewLockStatusState>(
+                    listener: (context, state) =>
+                        editorState.editable = !state.isLocked,
+                  ),
+                  BlocListener<ActionNavigationBloc, ActionNavigationState>(
+                    listenWhen: (_, curr) => curr.action != null,
+                    listener: onNotificationAction,
+                  ),
+                ],
+                child: AiWriterScrollWrapper(
+                  viewId: widget.view.id,
+                  editorState: editorState,
+                  child: buildEditorPage(context, state),
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildEditorPage(BuildContext context, DocumentState state) {
-    final Widget child;
+  Widget buildEditorPage(
+    BuildContext context,
+    DocumentState state,
+  ) {
+    final editorState = state.editorState;
+    if (editorState == null) {
+      return const SizedBox.shrink();
+    }
 
-    if (PlatformExtension.isMobile) {
+    final width = context.read<DocumentAppearanceCubit>().state.width;
+
+    // avoid the initial selection calculation change when the editorState is not changed
+    initialSelection ??= _calculateInitialSelection(editorState);
+
+    final Widget child;
+    if (UniversalPlatform.isMobile) {
       child = BlocBuilder<DocumentPageStyleBloc, DocumentPageStyleState>(
-        builder: (context, styleState) {
-          return AppFlowyEditorPage(
-            editorState: state.editorState!,
-            styleCustomizer: EditorStyleCustomizer(
-              context: context,
-              // the 44 is the width of the left action list
-              padding: EditorStyleCustomizer.documentPadding,
-            ),
-            header: _buildCoverAndIcon(context, state),
-            initialSelection: widget.initialSelection,
-          );
-        },
+        builder: (context, styleState) => AppFlowyEditorPage(
+          editorState: editorState,
+          // if the view's name is empty, focus on the title
+          autoFocus: widget.view.name.isEmpty ? false : null,
+          styleCustomizer: EditorStyleCustomizer(
+            context: context,
+            width: width,
+            padding: EditorStyleCustomizer.documentPadding,
+            editorState: editorState,
+          ),
+          header: buildCoverAndIcon(context, state),
+          initialSelection: initialSelection,
+        ),
       );
     } else {
-      child = AppFlowyEditorPage(
-        editorState: state.editorState!,
-        styleCustomizer: EditorStyleCustomizer(
-          context: context,
-          // the 44 is the width of the left action list
-          padding: EditorStyleCustomizer.documentPadding,
+      child = EditorDropHandler(
+        viewId: widget.view.id,
+        editorState: editorState,
+        isLocalMode: context.read<DocumentBloc>().isLocalMode,
+        child: AppFlowyEditorPage(
+          editorState: editorState,
+          // if the view's name is empty, focus on the title
+          autoFocus: widget.view.name.isEmpty ? false : null,
+          styleCustomizer: EditorStyleCustomizer(
+            context: context,
+            width: width,
+            padding: EditorStyleCustomizer.documentPadding,
+            editorState: editorState,
+          ),
+          header: buildCoverAndIcon(context, state),
+          initialSelection: initialSelection,
+          placeholderText: (node) =>
+              node.type == ParagraphBlockKeys.type && !node.isInTable
+                  ? LocaleKeys.editor_slashPlaceHolder.tr()
+                  : '',
         ),
-        header: _buildCoverAndIcon(context, state),
-        initialSelection: widget.initialSelection,
       );
     }
 
-    return Column(
-      children: [
-        // Only show the indicator in integration test mode
-        // if (FlowyRunner.currentMode.isIntegrationTest)
-        //   const DocumentSyncIndicator(),
-
-        if (state.isDeleted) _buildBanner(context),
-        Expanded(child: child),
-      ],
+    return Provider(
+      create: (_) {
+        final context = SharedEditorContext();
+        final children = editorState.document.root.children;
+        final firstDelta = children.firstOrNull?.delta;
+        final isEmptyDocument =
+            children.length == 1 && (firstDelta == null || firstDelta.isEmpty);
+        if (widget.view.name.isEmpty && isEmptyDocument) {
+          context.requestCoverTitleFocus = true;
+        }
+        return context;
+      },
+      dispose: (buildContext, editorContext) => editorContext.dispose(),
+      child: EditorTransactionService(
+        viewId: widget.view.id,
+        editorState: state.editorState!,
+        child: Column(
+          children: [
+            // the banner only shows on desktop
+            if (state.isDeleted && UniversalPlatform.isDesktop)
+              buildBanner(context),
+            Expanded(child: child),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildBanner(BuildContext context) {
+  Widget buildBanner(BuildContext context) {
     return DocumentBanner(
-      onRestore: () => context.read<DocumentBloc>().add(
-            const DocumentEvent.restorePage(),
-          ),
+      viewName: widget.view.nameOrDefault,
+      onRestore: () =>
+          context.read<DocumentBloc>().add(const DocumentEvent.restorePage()),
       onDelete: () => context
           .read<DocumentBloc>()
           .add(const DocumentEvent.deletePermanently()),
     );
   }
 
-  Widget _buildCoverAndIcon(BuildContext context, DocumentState state) {
+  Widget buildCoverAndIcon(BuildContext context, DocumentState state) {
     final editorState = state.editorState;
     final userProfilePB = state.userProfilePB;
     if (editorState == null || userProfilePB == null) {
       return const SizedBox.shrink();
     }
 
-    if (PlatformExtension.isMobile) {
+    if (UniversalPlatform.isMobile) {
       return DocumentImmersiveCover(
+        fixedTitle: widget.fixedTitle,
         view: widget.view,
+        tabs: widget.tabs,
         userProfilePB: userProfilePB,
       );
     }
@@ -177,43 +266,116 @@ class _DocumentPageState extends State<DocumentPage>
     final page = editorState.document.root;
     return DocumentCoverWidget(
       node: page,
+      tabs: widget.tabs,
       editorState: editorState,
       view: widget.view,
       onIconChanged: (icon) async => ViewBackendService.updateViewIcon(
-        viewId: widget.view.id,
+        view: widget.view,
         viewIcon: icon,
       ),
     );
   }
 
-  void _onEditorNotification(EditorNotificationType type) {
-    final editorState = this.editorState;
-    if (editorState == null) {
-      return;
-    }
-    if (type == EditorNotificationType.undo) {
-      undoCommand.execute(editorState);
-    } else if (type == EditorNotificationType.redo) {
-      redoCommand.execute(editorState);
-    } else if (type == EditorNotificationType.exitEditing &&
-        editorState.selection != null) {
-      editorState.selection = null;
-    }
-  }
-
-  void _onNotificationAction(
+  void onNotificationAction(
     BuildContext context,
     ActionNavigationState state,
   ) {
-    if (state.action != null && state.action!.type == ActionType.jumpToBlock) {
-      final path = state.action?.arguments?[ActionArgumentKeys.nodePath];
+    final action = state.action;
+    if (action == null ||
+        action.type != ActionType.jumpToBlock ||
+        action.objectId != widget.view.id) {
+      return;
+    }
 
-      final editorState = context.read<DocumentBloc>().state.editorState;
-      if (editorState != null && widget.view.id == state.action?.objectId) {
-        editorState.updateSelectionWithReason(
-          Selection.collapsed(Position(path: [path])),
+    final editorState = context.read<DocumentBloc>().state.editorState;
+    if (editorState == null) {
+      return;
+    }
+
+    final Path? path = _getPathFromAction(action, editorState);
+    if (path != null) {
+      editorState.updateSelectionWithReason(
+        Selection.collapsed(Position(path: path)),
+      );
+    }
+  }
+
+  Path? _getPathFromAction(NavigationAction action, EditorState editorState) {
+    Path? path = action.arguments?[ActionArgumentKeys.nodePath];
+    if (path == null || path.isEmpty) {
+      final blockId = action.arguments?[ActionArgumentKeys.blockId];
+      if (blockId != null) {
+        path = _findNodePathByBlockId(editorState, blockId);
+      }
+    }
+    return path;
+  }
+
+  Path? _findNodePathByBlockId(EditorState editorState, String blockId) {
+    final document = editorState.document;
+    final startNode = document.root.children.firstOrNull;
+    if (startNode == null) {
+      return null;
+    }
+
+    final nodeIterator = NodeIterator(document: document, startNode: startNode);
+    while (nodeIterator.moveNext()) {
+      final node = nodeIterator.current;
+      if (node.id == blockId) {
+        return node.path;
+      }
+    }
+
+    return null;
+  }
+
+  bool shouldRebuildDocument(DocumentState previous, DocumentState current) {
+    // only rebuild the document page when the below fields are changed
+    // this is to prevent unnecessary rebuilds
+    //
+    // If you confirm the newly added fields should be rebuilt, please update
+    // this function.
+    if (previous.editorState != current.editorState) {
+      return true;
+    }
+
+    if (previous.forceClose != current.forceClose ||
+        previous.isDeleted != current.isDeleted) {
+      return true;
+    }
+
+    if (previous.userProfilePB != current.userProfilePB) {
+      return true;
+    }
+
+    if (previous.isLoading != current.isLoading ||
+        previous.error != current.error) {
+      return true;
+    }
+
+    return false;
+  }
+
+  Selection? _calculateInitialSelection(EditorState editorState) {
+    if (widget.initialSelection != null) {
+      return widget.initialSelection;
+    }
+
+    if (widget.initialBlockId != null) {
+      final path = _findNodePathByBlockId(editorState, widget.initialBlockId!);
+      if (path != null) {
+        editorState.selectionType = SelectionType.block;
+        editorState.selectionExtraInfo = {
+          selectionExtraInfoDoNotAttachTextService: true,
+        };
+        return Selection.collapsed(
+          Position(
+            path: path,
+          ),
         );
       }
     }
+
+    return null;
   }
 }

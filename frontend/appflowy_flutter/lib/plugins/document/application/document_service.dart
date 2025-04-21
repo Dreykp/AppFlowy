@@ -1,4 +1,6 @@
+import 'package:appflowy/plugins/document/application/document_data_pb_extension.dart';
 import 'package:appflowy_backend/dispatch/dispatch.dart';
+import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-document/entities.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
@@ -34,6 +36,41 @@ class DocumentService {
     final payload = OpenDocumentPayloadPB()..documentId = documentId;
     final result = await DocumentEventGetDocumentData(payload).send();
     return result;
+  }
+
+  Future<FlowyResult<(DocumentDataPB, BlockPB, Node), FlowyError>>
+      getDocumentNode({
+    required String documentId,
+    required String blockId,
+  }) async {
+    final documentResult = await getDocument(documentId: documentId);
+    final document = documentResult.fold((l) => l, (f) => null);
+    if (document == null) {
+      Log.error('unable to get the document for page $documentId');
+      return FlowyResult.failure(FlowyError(msg: 'Document not found'));
+    }
+
+    final blockResult = await getBlockFromDocument(
+      document: document,
+      blockId: blockId,
+    );
+    final block = blockResult.fold((l) => l, (f) => null);
+    if (block == null) {
+      Log.error(
+        'unable to get the block $blockId from the document $documentId',
+      );
+      return FlowyResult.failure(FlowyError(msg: 'Block not found'));
+    }
+
+    final node = document.buildNode(blockId);
+    if (node == null) {
+      Log.error(
+        'unable to get the node for block $blockId in document $documentId',
+      );
+      return FlowyResult.failure(FlowyError(msg: 'Node not found'));
+    }
+
+    return FlowyResult.success((document, block, node));
   }
 
   Future<FlowyResult<BlockPB, FlowyError>> getBlockFromDocument({
@@ -114,20 +151,22 @@ class DocumentService {
   /// Upload a file to the cloud storage.
   Future<FlowyResult<UploadedFilePB, FlowyError>> uploadFile({
     required String localFilePath,
-    bool isAsync = true,
+    required String documentId,
   }) async {
     final workspace = await FolderEventReadCurrentWorkspace().send();
-    return workspace.fold((l) async {
-      final payload = UploadFileParamsPB(
-        workspaceId: l.id,
-        localFilePath: localFilePath,
-        isAsync: isAsync,
-      );
-      final result = await DocumentEventUploadFile(payload).send();
-      return result;
-    }, (r) async {
-      return FlowyResult.failure(FlowyError(msg: 'Workspace not found'));
-    });
+    return workspace.fold(
+      (l) async {
+        final payload = UploadFileParamsPB(
+          workspaceId: l.id,
+          localFilePath: localFilePath,
+          documentId: documentId,
+        );
+        return DocumentEventUploadFile(payload).send();
+      },
+      (r) async {
+        return FlowyResult.failure(FlowyError(msg: 'Workspace not found'));
+      },
+    );
   }
 
   /// Download a file from the cloud storage.
@@ -136,7 +175,7 @@ class DocumentService {
   }) async {
     final workspace = await FolderEventReadCurrentWorkspace().send();
     return workspace.fold((l) async {
-      final payload = UploadedFilePB(
+      final payload = DownloadFilePB(
         url: url,
       );
       final result = await DocumentEventDownloadFile(payload).send();

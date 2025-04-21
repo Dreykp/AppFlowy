@@ -1,6 +1,3 @@
-import 'package:appflowy/workspace/application/settings/appearance/base_appearance.dart';
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/document/application/document_appearance_cubit.dart';
@@ -9,69 +6,18 @@ import 'package:appflowy/util/font_family_extension.dart';
 import 'package:appflowy/util/levenshtein.dart';
 import 'package:appflowy/workspace/application/appearance_defaults.dart';
 import 'package:appflowy/workspace/application/settings/appearance/appearance_cubit.dart';
+import 'package:appflowy/workspace/application/settings/appearance/base_appearance.dart';
 import 'package:appflowy/workspace/presentation/settings/shared/setting_list_tile.dart';
 import 'package:appflowy/workspace/presentation/settings/shared/setting_value_dropdown.dart';
-import 'package:appflowy_backend/log.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
 import 'package:appflowy_popover/appflowy_popover.dart';
 import 'package:collection/collection.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/style_widget/button.dart';
 import 'package:flowy_infra_ui/style_widget/text.dart';
 import 'package:flowy_infra_ui/style_widget/text_field.dart';
-import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-final customizeFontToolbarItem = ToolbarItem(
-  id: 'editor.font',
-  group: 4,
-  isActive: onlyShowInTextType,
-  builder: (context, editorState, highlightColor, _) {
-    final selection = editorState.selection!;
-    final popoverController = PopoverController();
-    final String? currentFontFamily = editorState
-        .getDeltaAttributeValueInSelection(AppFlowyRichTextKeys.fontFamily);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: FontFamilyDropDown(
-        currentFontFamily: currentFontFamily ?? '',
-        offset: const Offset(0, 12),
-        popoverController: popoverController,
-        onOpen: () => keepEditorFocusNotifier.increase(),
-        onClose: () => keepEditorFocusNotifier.decrease(),
-        showResetButton: true,
-        onFontFamilyChanged: (fontFamily) async {
-          popoverController.close();
-          try {
-            await editorState.formatDelta(selection, {
-              AppFlowyRichTextKeys.fontFamily: fontFamily,
-            });
-          } catch (e) {
-            Log.error('Failed to set font family: $e');
-          }
-        },
-        onResetFont: () async {
-          popoverController.close();
-          await editorState
-              .formatDelta(selection, {AppFlowyRichTextKeys.fontFamily: null});
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-          child: FlowyTooltip(
-            message: LocaleKeys.document_plugins_fonts.tr(),
-            child: const FlowySvg(
-              FlowySvgs.font_family_s,
-              size: Size.square(16.0),
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
-  },
-);
 
 class ThemeFontFamilySetting extends StatefulWidget {
   const ThemeFontFamilySetting({
@@ -81,7 +27,7 @@ class ThemeFontFamilySetting extends StatefulWidget {
 
   final String currentFontFamily;
   static Key textFieldKey = const Key('FontFamilyTextField');
-  static Key resetButtonkey = const Key('FontFamilyResetButton');
+  static Key resetButtonKey = const Key('FontFamilyResetButton');
   static Key popoverKey = const Key('FontFamilyPopover');
 
   @override
@@ -93,7 +39,7 @@ class _ThemeFontFamilySettingState extends State<ThemeFontFamilySetting> {
   Widget build(BuildContext context) {
     return SettingListTile(
       label: LocaleKeys.settings_appearance_fontFamily_label.tr(),
-      resetButtonKey: ThemeFontFamilySetting.resetButtonkey,
+      resetButtonKey: ThemeFontFamilySetting.resetButtonKey,
       onResetRequested: () {
         context.read<AppearanceSettingsCubit>().resetFontFamily();
         context
@@ -117,7 +63,6 @@ class FontFamilyDropDown extends StatefulWidget {
     this.child,
     this.popoverController,
     this.offset,
-    this.showResetButton = false,
     this.onResetFont,
   });
 
@@ -128,7 +73,6 @@ class FontFamilyDropDown extends StatefulWidget {
   final Widget? child;
   final PopoverController? popoverController;
   final Offset? offset;
-  final bool showResetButton;
   final VoidCallback? onResetFont;
 
   @override
@@ -155,6 +99,11 @@ class _FontFamilyDropDownState extends State<FontFamilyDropDown> {
       popoverKey: ThemeFontFamilySetting.popoverKey,
       popoverController: widget.popoverController,
       currentValue: currentValue,
+      margin: EdgeInsets.zero,
+      boxConstraints: const BoxConstraints(
+        maxWidth: 240,
+        maxHeight: 420,
+      ),
       onClose: () {
         query.value = '';
         widget.onClose?.call();
@@ -163,32 +112,25 @@ class _FontFamilyDropDownState extends State<FontFamilyDropDown> {
       child: widget.child,
       popupBuilder: (_) {
         widget.onOpen?.call();
-        return CustomScrollView(
-          shrinkWrap: true,
-          slivers: [
-            if (widget.showResetButton)
-              SliverPersistentHeader(
-                delegate: _ResetFontButton(onPressed: widget.onResetFont),
-                pinned: true,
-              ),
-            SliverPadding(
-              padding: const EdgeInsets.only(right: 8),
-              sliver: SliverToBoxAdapter(
-                child: FlowyTextField(
-                  key: ThemeFontFamilySetting.textFieldKey,
-                  hintText:
-                      LocaleKeys.settings_appearance_fontFamily_search.tr(),
-                  autoFocus: false,
-                  debounceDuration: const Duration(milliseconds: 300),
-                  onChanged: (value) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: FlowyTextField(
+                key: ThemeFontFamilySetting.textFieldKey,
+                hintText: LocaleKeys.settings_appearance_fontFamily_search.tr(),
+                autoFocus: false,
+                debounceDuration: const Duration(milliseconds: 300),
+                onChanged: (value) {
+                  setState(() {
                     query.value = value;
-                  },
-                ),
+                  });
+                },
               ),
             ),
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 4),
-            ),
+            Container(height: 1, color: Theme.of(context).dividerColor),
             ValueListenableBuilder(
               valueListenable: query,
               builder: (context, value, child) {
@@ -203,14 +145,32 @@ class _FontFamilyDropDownState extends State<FontFamilyDropDown> {
                       .sorted((a, b) => levenshtein(a, b))
                       .toList();
                 }
-                return SliverFixedExtentList.builder(
-                  itemBuilder: (context, index) => _fontFamilyItemButton(
-                    context,
-                    getGoogleFontSafely(displayed[index]),
-                  ),
-                  itemCount: displayed.length,
-                  itemExtent: 32,
-                );
+                return displayed.length >= 10
+                    ? Flexible(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(8.0),
+                          itemBuilder: (context, index) =>
+                              _fontFamilyItemButton(
+                            context,
+                            getGoogleFontSafely(displayed[index]),
+                          ),
+                          itemCount: displayed.length,
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: List.generate(
+                            displayed.length,
+                            (index) => _fontFamilyItemButton(
+                              context,
+                              getGoogleFontSafely(displayed[index]),
+                            ),
+                          ),
+                        ),
+                      );
               },
             ),
           ],
@@ -230,16 +190,18 @@ class _FontFamilyDropDownState extends State<FontFamilyDropDown> {
       waitDuration: const Duration(milliseconds: 150),
       child: SizedBox(
         key: ValueKey(buttonFontFamily),
-        height: 32,
+        height: 36,
         child: FlowyButton(
           onHover: (_) => FocusScope.of(context).unfocus(),
-          text: FlowyText.medium(
+          text: FlowyText(
             buttonFontFamily.fontFamilyDisplayName,
             fontFamily: buttonFontFamily,
+            figmaLineHeight: 20,
+            fontWeight: FontWeight.w400,
           ),
           rightIcon:
               buttonFontFamily == widget.currentFontFamily.parseFontFamilyName()
-                  ? const FlowySvg(FlowySvgs.check_s)
+                  ? const FlowySvg(FlowySvgs.toolbar_check_m)
                   : null,
           onTap: () {
             if (widget.onFontFamilyChanged != null) {
@@ -261,38 +223,4 @@ class _FontFamilyDropDownState extends State<FontFamilyDropDown> {
       ),
     );
   }
-}
-
-class _ResetFontButton extends SliverPersistentHeaderDelegate {
-  _ResetFontButton({this.onPressed});
-
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8, bottom: 8.0),
-      child: FlowyTextButton(
-        LocaleKeys.document_toolbar_resetToDefaultFont.tr(),
-        fontColor: AFThemeExtension.of(context).textColor,
-        fontHoverColor: Theme.of(context).colorScheme.onSurface,
-        fontSize: 12,
-        onPressed: onPressed,
-      ),
-    );
-  }
-
-  @override
-  double get maxExtent => 35;
-
-  @override
-  double get minExtent => 35;
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
-      true;
 }

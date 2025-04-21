@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:appflowy/plugins/document/application/document_bloc.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/mobile_toolbar_v3/aa_menu/_close_keyboard_or_menu_button.dart';
@@ -9,6 +10,7 @@ import 'package:appflowy/plugins/document/presentation/editor_plugins/mobile_too
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:collection/collection.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +20,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 abstract class AppFlowyMobileToolbarWidgetService {
   void closeItemMenu();
+
   void closeKeyboard();
 
   PropertyValueNotifier<bool> get showMenuNotifier;
@@ -73,8 +76,7 @@ class _AppFlowyMobileToolbarState extends State<AppFlowyMobileToolbar> {
         ValueListenableBuilder(
           valueListenable: isKeyboardShow,
           builder: (context, isKeyboardShow, __) {
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 110),
+            return SizedBox(
               // only adding padding when the keyboard is triggered by editor
               height: isKeyboardShow && widget.editorState.selection != null
                   ? widget.toolbarHeight
@@ -178,7 +180,13 @@ class _MobileToolbarState extends State<_MobileToolbar>
   //  but in this case, we don't want to update the cached keyboard height.
   // This is because we want to keep the same height when the menu is shown.
   bool canUpdateCachedKeyboardHeight = true;
-  ValueNotifier<double> cachedKeyboardHeight = ValueNotifier(0.0);
+
+  /// when the [_MobileToolbar] disposed before the keyboard height can be updated in time,
+  /// there will be an issue with the height being 0
+  /// this is used to globally record the height.
+  static double _globalCachedKeyboardHeight = 0.0;
+  ValueNotifier<double> cachedKeyboardHeight =
+      ValueNotifier(_globalCachedKeyboardHeight);
 
   // used to check if click the same item again
   int? selectedMenuIndex;
@@ -244,12 +252,12 @@ class _MobileToolbarState extends State<_MobileToolbar>
       children: [
         const Divider(
           height: 0.5,
-          color: Color(0xFFEDEDED),
+          color: Color(0x7FEDEDED),
         ),
         _buildToolbar(context),
         const Divider(
           height: 0.5,
-          color: Color(0xFFEDEDED),
+          color: Color(0x7FEDEDED),
         ),
         _buildMenuOrSpacer(context),
       ],
@@ -275,7 +283,9 @@ class _MobileToolbarState extends State<_MobileToolbar>
     if (!closeKeyboardInitiative &&
         cachedKeyboardHeight.value != 0 &&
         height == 0) {
-      widget.editorState.selection = null;
+      if (!widget.editorState.isDisposed) {
+        widget.editorState.selection = null;
+      }
     }
 
     // if the menu is shown and the height is not 0, we need to close the menu
@@ -285,6 +295,14 @@ class _MobileToolbarState extends State<_MobileToolbar>
 
     if (canUpdateCachedKeyboardHeight) {
       cachedKeyboardHeight.value = height;
+
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        // cache the keyboard height with the view padding in Android
+        if (cachedKeyboardHeight.value != 0) {
+          cachedKeyboardHeight.value +=
+              MediaQuery.of(context).viewPadding.bottom;
+        }
+      }
     }
 
     if (height == 0) {
@@ -383,26 +401,35 @@ class _MobileToolbarState extends State<_MobileToolbar>
     return ValueListenableBuilder(
       valueListenable: cachedKeyboardHeight,
       builder: (_, height, ___) {
-        return AnimatedContainer(
-          duration: const Duration(microseconds: 110),
-          height: height,
-          child: ValueListenableBuilder(
-            valueListenable: showMenuNotifier,
-            builder: (_, showingMenu, __) {
-              return AnimatedContainer(
-                duration: const Duration(microseconds: 110),
-                height: height,
-                child: (showingMenu && selectedMenuIndex != null)
-                    ? widget.toolbarItems[selectedMenuIndex!].menuBuilder?.call(
-                          context,
-                          widget.editorState,
-                          this,
-                        ) ??
-                        const SizedBox.shrink()
-                    : const SizedBox.shrink(),
-              );
-            },
-          ),
+        return ValueListenableBuilder(
+          valueListenable: showMenuNotifier,
+          builder: (_, showingMenu, __) {
+            var keyboardHeight = height;
+            if (defaultTargetPlatform == TargetPlatform.android) {
+              if (!showingMenu) {
+                // take the max value of the keyboard height and the view padding
+                // to make sure the toolbar is above the keyboard
+                keyboardHeight = max(
+                  keyboardHeight,
+                  MediaQuery.of(context).viewInsets.bottom,
+                );
+              }
+            }
+            if (keyboardHeight > 0) {
+              _globalCachedKeyboardHeight = keyboardHeight;
+            }
+            return SizedBox(
+              height: keyboardHeight,
+              child: (showingMenu && selectedMenuIndex != null)
+                  ? widget.toolbarItems[selectedMenuIndex!].menuBuilder?.call(
+                        context,
+                        widget.editorState,
+                        this,
+                      ) ??
+                      const SizedBox.shrink()
+                  : const SizedBox.shrink(),
+            );
+          },
         );
       },
     );

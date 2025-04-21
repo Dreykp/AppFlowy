@@ -48,7 +48,6 @@ class _UnsplashImageWidgetState extends State<UnsplashImageWidget> {
   @override
   void initState() {
     super.initState();
-
     randomPhotos = unsplash.photos
         .random(count: 18, orientation: PhotoOrientation.landscape)
         .goAndGet();
@@ -57,7 +56,6 @@ class _UnsplashImageWidgetState extends State<UnsplashImageWidget> {
   @override
   void dispose() {
     unsplash.close();
-
     super.dispose();
   }
 
@@ -112,7 +110,7 @@ class _UnsplashImageWidgetState extends State<UnsplashImageWidget> {
   }
 }
 
-class _UnsplashImages extends StatelessWidget {
+class _UnsplashImages extends StatefulWidget {
   const _UnsplashImages({
     required this.type,
     required this.photos,
@@ -124,35 +122,42 @@ class _UnsplashImages extends StatelessWidget {
   final OnSelectUnsplashImage onSelectUnsplashImage;
 
   @override
+  State<_UnsplashImages> createState() => _UnsplashImagesState();
+}
+
+class _UnsplashImagesState extends State<_UnsplashImages> {
+  int _selectedPhotoIndex = -1;
+
+  @override
   Widget build(BuildContext context) {
-    final crossAxisCount = switch (type) {
+    const mainAxisSpacing = 16.0;
+    final crossAxisCount = switch (widget.type) {
       UnsplashImageType.halfScreen => 3,
       UnsplashImageType.fullScreen => 2,
     };
-    final mainAxisSpacing = switch (type) {
-      UnsplashImageType.halfScreen => 16.0,
-      UnsplashImageType.fullScreen => 16.0,
-    };
-    final crossAxisSpacing = switch (type) {
+    final crossAxisSpacing = switch (widget.type) {
       UnsplashImageType.halfScreen => 10.0,
       UnsplashImageType.fullScreen => 16.0,
     };
+
     return GridView.count(
       crossAxisCount: crossAxisCount,
       mainAxisSpacing: mainAxisSpacing,
       crossAxisSpacing: crossAxisSpacing,
       childAspectRatio: 4 / 3,
-      children: photos
-          .map(
-            (photo) => _UnsplashImage(
-              type: type,
-              photo: photo,
-              onTap: () => onSelectUnsplashImage(
-                photo.urls.regular.toString(),
-              ),
-            ),
-          )
-          .toList(),
+      children: widget.photos.asMap().entries.map((entry) {
+        final index = entry.key;
+        final photo = entry.value;
+        return _UnsplashImage(
+          type: widget.type,
+          photo: photo,
+          isSelected: index == _selectedPhotoIndex,
+          onTap: () {
+            widget.onSelectUnsplashImage(photo.urls.full.toString());
+            setState(() => _selectedPhotoIndex = index);
+          },
+        );
+      }).toList(),
     );
   }
 }
@@ -162,11 +167,13 @@ class _UnsplashImage extends StatelessWidget {
     required this.type,
     required this.photo,
     required this.onTap,
+    required this.isSelected,
   });
 
   final UnsplashImageType type;
   final Photo photo;
   final VoidCallback onTap;
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +184,19 @@ class _UnsplashImage extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: child,
+      child: isSelected
+          ? Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: ShapeDecoration(
+                shape: RoundedRectangleBorder(
+                  side: const BorderSide(width: 1.50, color: Color(0xFF00BCF0)),
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+              padding: const EdgeInsets.all(2.0),
+              child: child,
+            )
+          : child,
     );
   }
 
@@ -192,10 +211,7 @@ class _UnsplashImage extends StatelessWidget {
           ),
         ),
         const HSpace(2.0),
-        FlowyText(
-          'by ${photo.name}',
-          fontSize: 10.0,
-        ),
+        FlowyText('by ${photo.name}', fontSize: 10.0),
       ],
     );
   }
@@ -206,14 +222,12 @@ class _UnsplashImage extends StatelessWidget {
       child: Stack(
         children: [
           LayoutBuilder(
-            builder: (context, constraints) {
-              return Image.network(
-                photo.urls.thumb.toString(),
-                fit: BoxFit.cover,
-                width: constraints.maxWidth,
-                height: constraints.maxHeight,
-              );
-            },
+            builder: (_, constraints) => Image.network(
+              photo.urls.thumb.toString(),
+              fit: BoxFit.cover,
+              width: constraints.maxWidth,
+              height: constraints.maxHeight,
+            ),
           ),
           Positioned(
             bottom: 9,
@@ -234,13 +248,9 @@ extension on Photo {
   String get name {
     if (user.username.isNotEmpty) {
       return user.username;
-    }
-
-    if (user.name.isNotEmpty) {
+    } else if (user.name.isNotEmpty) {
       return user.name;
-    }
-
-    if (user.email?.isNotEmpty == true) {
+    } else if (user.email?.isNotEmpty == true) {
       return user.email!;
     }
 

@@ -4,8 +4,6 @@ abstract class TypeOptionParser<T> {
   T fromBuffer(List<int> buffer);
 }
 
-
-
 class NumberTypeOptionDataParser extends TypeOptionParser<NumberTypeOptionPB> {
   @override
   NumberTypeOptionPB fromBuffer(List<int> buffer) {
@@ -49,5 +47,20 @@ class RelationTypeOptionDataParser
   @override
   RelationTypeOptionPB fromBuffer(List<int> buffer) {
     return RelationTypeOptionPB.fromBuffer(buffer);
+  }
+}
+
+class TranslateTypeOptionDataParser
+    extends TypeOptionParser<TranslateTypeOptionPB> {
+  @override
+  TranslateTypeOptionPB fromBuffer(List<int> buffer) {
+    return TranslateTypeOptionPB.fromBuffer(buffer);
+  }
+}
+
+class MediaTypeOptionDataParser extends TypeOptionParser<MediaTypeOptionPB> {
+  @override
+  MediaTypeOptionPB fromBuffer(List<int> buffer) {
+    return MediaTypeOptionPB.fromBuffer(buffer);
   }
 }

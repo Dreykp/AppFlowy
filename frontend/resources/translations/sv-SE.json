@@ -107,14 +107,14 @@
   "questionBubble": {
     "shortcuts": "Genvägar",
     "whatsNew": "Vad nytt?",
-    "help": "Hjälp & Support",
     "markdown": "Prissänkning",
     "debug": {
       "name": "Felsökningsinfo",
       "success": "Kopierade felsökningsinfo till urklipp!",
       "fail": "Kunde inte kopiera felsökningsinfo till urklipp"
     },
-    "feedback": "Återkoppling"
+    "feedback": "Återkoppling",
+    "help": "Hjälp & Support"
   },
   "menuAppHeader": {
     "addPageTooltip": "Lägg till en underliggande sida",
@@ -247,11 +247,6 @@
       "cloudServerType": "Molnserver",
       "cloudServerTypeTip": "Observera att det kan logga ut ditt nuvarande konto efter att ha bytt molnserver",
       "cloudLocal": "Lokal",
-      "cloudSupabase": "Supabase",
-      "cloudSupabaseUrl": "Supabase URL",
-      "cloudSupabaseUrlCanNotBeEmpty": "Webbadressen för supabase kan inte vara tom",
-      "cloudSupabaseAnonKey": "Supabase anonym nyckel",
-      "cloudSupabaseAnonKeyCanNotBeEmpty": "Anon-nyckeln kan inte vara tom",
       "appFlowyCloudUrlCanNotBeEmpty": "Molnets webbadress får inte vara tom",
       "clickToCopy": "Klicka för att kopiera",
       "selfHostStart": "Om du inte har en server, vänligen se",
@@ -278,8 +273,7 @@
       "importAppFlowyDataDescription": "Kopiera data från en extern @:appName-datamapp och importera den till den aktuella @:appName-datamappen",
       "importSuccess": "@:appName-datamappen har importerats",
       "importFailed": "Det gick inte att importera @:appName-datamappen",
-      "importGuide": "För ytterligare information, snälla se det refererade dokumentet",
-      "supabaseSetting": "Supabase-inställning"
+      "importGuide": "För ytterligare information, snälla se det refererade dokumentet"
     },
     "appearance": {
       "fontFamily": {
@@ -345,7 +339,7 @@
     "user": {
       "name": "namn",
       "selectAnIcon": "Välj en ikon",
-      "pleaseInputYourOpenAIKey": "vänligen ange din OpenAI-nyckel"
+      "pleaseInputYourOpenAIKey": "vänligen ange din AI-nyckel"
     }
   },
   "grid": {
@@ -501,23 +495,23 @@
       "referencedBoard": "Refererad tavla",
       "referencedGrid": "Refererade tabell",
       "referencedCalendar": "Refererad kalender",
-      "autoGeneratorMenuItemName": "OpenAI Writer",
-      "autoGeneratorTitleName": "OpenAI: Be AI skriva vad som helst...",
+      "autoGeneratorMenuItemName": "AI Writer",
+      "autoGeneratorTitleName": "AI: Be AI skriva vad som helst...",
       "autoGeneratorLearnMore": "Läs mer",
       "autoGeneratorGenerate": "Generera",
-      "autoGeneratorHintText": "Fråga OpenAI...",
-      "autoGeneratorCantGetOpenAIKey": "Kan inte hämta OpenAI-nyckeln",
+      "autoGeneratorHintText": "Fråga AI...",
+      "autoGeneratorCantGetOpenAIKey": "Kan inte hämta AI-nyckeln",
       "autoGeneratorRewrite": "Skriva om",
       "smartEdit": "AI-assistenter",
-      "openAI": "OpenAI",
+      "aI": "AI",
       "smartEditFixSpelling": "Fixa stavningen",
       "warning": "⚠️ AI-svar kan vara felaktiga eller vilseledande.",
       "smartEditSummarize": "Sammanfatta",
       "smartEditImproveWriting": "Förbättra skrivandet",
       "smartEditMakeLonger": "Gör längre",
-      "smartEditCouldNotFetchResult": "Det gick inte att hämta resultatet från OpenAI",
-      "smartEditCouldNotFetchKey": "Det gick inte att hämta OpenAI-nyckeln",
-      "smartEditDisabled": "Anslut OpenAI i Inställningar",
+      "smartEditCouldNotFetchResult": "Det gick inte att hämta resultatet från AI",
+      "smartEditCouldNotFetchKey": "Det gick inte att hämta AI-nyckeln",
+      "smartEditDisabled": "Anslut AI i Inställningar",
       "discardResponse": "Vill du kassera AI-svaren?",
       "createInlineMathEquation": "Skapa ekvation",
       "toggleList": "Växla lista",

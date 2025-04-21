@@ -2,10 +2,9 @@ use anyhow::Error;
 use collab_entity::CollabType;
 use tokio::sync::oneshot::channel;
 
-use flowy_database_pub::cloud::{
-  CollabDocStateByOid, DatabaseCloudService, DatabaseSnapshot, SummaryRowContent,
-};
-use lib_dispatch::prelude::af_spawn;
+use flowy_database_pub::cloud::{CollabDocStateByOid, DatabaseCloudService, DatabaseSnapshot};
+
+use lib_infra::async_trait::async_trait;
 use lib_infra::future::FutureResult;
 
 use crate::supabase::api::request::{
@@ -23,6 +22,7 @@ impl<T> SupabaseDatabaseServiceImpl<T> {
   }
 }
 
+#[async_trait]
 impl<T> DatabaseCloudService for SupabaseDatabaseServiceImpl<T>
 where
   T: SupabaseServerService,
@@ -36,7 +36,7 @@ where
     let try_get_postgrest = self.server.try_get_weak_postgrest();
     let object_id = object_id.to_string();
     let (tx, rx) = channel();
-    af_spawn(async move {
+    tokio::spawn(async move {
       tx.send(
         async move {
           let postgrest = try_get_postgrest?;
@@ -59,7 +59,7 @@ where
   ) -> FutureResult<CollabDocStateByOid, Error> {
     let try_get_postgrest = self.server.try_get_weak_postgrest();
     let (tx, rx) = channel();
-    af_spawn(async move {
+    tokio::spawn(async move {
       tx.send(
         async move {
           let postgrest = try_get_postgrest?;
@@ -95,14 +95,5 @@ where
 
       Ok(snapshots)
     })
-  }
-
-  fn summary_database_row(
-    &self,
-    _workspace_id: &str,
-    _object_id: &str,
-    _summary_row: SummaryRowContent,
-  ) -> FutureResult<String, Error> {
-    FutureResult::new(async move { Ok("".to_string()) })
   }
 }

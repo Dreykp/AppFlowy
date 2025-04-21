@@ -3,11 +3,10 @@ import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/bottom_sheet/bottom_sheet.dart';
 import 'package:appflowy/mobile/presentation/widgets/flowy_mobile_quick_action_button.dart';
 import 'package:appflowy/plugins/database/board/application/board_bloc.dart';
-import 'package:appflowy/plugins/database/grid/presentation/widgets/header/field_type_extension.dart';
+import 'package:appflowy/util/field_type_extension.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:appflowy_board/appflowy_board.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -113,12 +112,8 @@ class _GroupCardHeaderState extends State<GroupCardHeader> {
                     context,
                     showDragHandle: true,
                     backgroundColor: Theme.of(context).colorScheme.surface,
-                    builder: (_) => SeparatedColumn(
+                    builder: (_) => Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      separatorBuilder: () => const Divider(
-                        height: 8.5,
-                        thickness: 0.5,
-                      ),
                       children: [
                         MobileQuickActionButton(
                           text: LocaleKeys.board_column_renameColumn.tr(),
@@ -132,6 +127,7 @@ class _GroupCardHeaderState extends State<GroupCardHeader> {
                             context.pop();
                           },
                         ),
+                        const MobileQuickActionDivider(),
                         MobileQuickActionButton(
                           text: LocaleKeys.board_column_hideColumn.tr(),
                           icon: FlowySvgs.hide_s,

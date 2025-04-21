@@ -1,6 +1,3 @@
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/plugins/blank/blank.dart';
 import 'package:appflowy/startup/plugin/plugin.dart';
 import 'package:appflowy/startup/startup.dart';
@@ -15,6 +12,7 @@ import 'package:appflowy/workspace/application/tabs/tabs_bloc.dart';
 import 'package:appflowy/workspace/application/user/user_workspace_bloc.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/application/view/view_service.dart';
+import 'package:appflowy/workspace/presentation/home/af_focus_manager.dart';
 import 'package:appflowy/workspace/presentation/home/errors/workspace_failed_screen.dart';
 import 'package:appflowy/workspace/presentation/home/hotkeys.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/sidebar.dart';
@@ -26,12 +24,14 @@ import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart'
     show UserProfilePB;
 import 'package:flowy_infra_ui/style_widget/container.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sentry/sentry.dart';
 import 'package:sized_context/sized_context.dart';
 import 'package:styled_widget/styled_widget.dart';
 
 import '../widgets/edit_panel/edit_panel.dart';
-
+import '../widgets/sidebar_resizer.dart';
 import 'home_layout.dart';
 import 'home_stack.dart';
 
@@ -52,10 +52,11 @@ class DesktopHomeScreen extends StatelessWidget {
           return _buildLoading();
         }
 
-        final workspaceSetting = snapshots.data?[0].fold(
-          (workspaceSettingPB) => workspaceSettingPB as WorkspaceSettingPB,
+        final workspaceLatest = snapshots.data?[0].fold(
+          (workspaceLatestPB) => workspaceLatestPB as WorkspaceLatestPB,
           (error) => null,
         );
+
         final userProfile = snapshots.data?[1].fold(
           (userProfilePB) => userProfilePB as UserProfilePB,
           (error) => null,
@@ -63,66 +64,82 @@ class DesktopHomeScreen extends StatelessWidget {
 
         // In the unlikely case either of the above is null, eg.
         // when a workspace is already open this can happen.
-        if (workspaceSetting == null || userProfile == null) {
+        if (workspaceLatest == null || userProfile == null) {
           return const WorkspaceFailedScreen();
         }
 
-        return MultiBlocProvider(
-          key: ValueKey(userProfile.id),
-          providers: [
-            BlocProvider<ReminderBloc>.value(value: getIt<ReminderBloc>()),
-            BlocProvider<TabsBloc>.value(value: getIt<TabsBloc>()),
-            BlocProvider<HomeBloc>(
-              create: (_) =>
-                  HomeBloc(workspaceSetting)..add(const HomeEvent.initial()),
+        Sentry.configureScope(
+          (scope) => scope.setUser(
+            SentryUser(
+              id: userProfile.id.toString(),
             ),
-            BlocProvider<HomeSettingBloc>(
-              create: (_) => HomeSettingBloc(
-                workspaceSetting,
-                context.read<AppearanceSettingsCubit>(),
-                context.widthPx,
-              )..add(const HomeSettingEvent.initial()),
-            ),
-            BlocProvider<FavoriteBloc>(
-              create: (context) =>
-                  FavoriteBloc()..add(const FavoriteEvent.initial()),
-            ),
-          ],
-          child: Scaffold(
-            floatingActionButton: enableMemoryLeakDetect
-                ? const FloatingActionButton(
-                    onPressed: dumpMemoryLeak,
-                    child: Icon(Icons.memory),
-                  )
-                : null,
-            body: BlocListener<HomeBloc, HomeState>(
-              listenWhen: (p, c) => p.latestView != c.latestView,
-              listener: (context, state) {
-                final view = state.latestView;
-                if (view != null) {
-                  // Only open the last opened view if the [TabsState.currentPageManager] current opened plugin is blank and the last opened view is not null.
-                  // All opened widgets that display on the home screen are in the form of plugins. There is a list of built-in plugins defined in the [PluginType] enum, including board, grid and trash.
-                  final currentPageManager =
-                      context.read<TabsBloc>().state.currentPageManager;
+          ),
+        );
 
-                  if (currentPageManager.plugin.pluginType ==
-                      PluginType.blank) {
-                    getIt<TabsBloc>().add(
-                      TabsEvent.openPlugin(plugin: view.plugin()),
-                    );
+        return AFFocusManager(
+          child: MultiBlocProvider(
+            key: ValueKey(userProfile.id),
+            providers: [
+              BlocProvider.value(
+                value: getIt<ReminderBloc>(),
+              ),
+              BlocProvider<TabsBloc>.value(value: getIt<TabsBloc>()),
+              BlocProvider<HomeBloc>(
+                create: (_) =>
+                    HomeBloc(workspaceLatest)..add(const HomeEvent.initial()),
+              ),
+              BlocProvider<HomeSettingBloc>(
+                create: (_) => HomeSettingBloc(
+                  workspaceLatest,
+                  context.read<AppearanceSettingsCubit>(),
+                  context.widthPx,
+                )..add(const HomeSettingEvent.initial()),
+              ),
+              BlocProvider<FavoriteBloc>(
+                create: (context) =>
+                    FavoriteBloc()..add(const FavoriteEvent.initial()),
+              ),
+            ],
+            child: Scaffold(
+              floatingActionButton: enableMemoryLeakDetect
+                  ? const FloatingActionButton(
+                      onPressed: dumpMemoryLeak,
+                      child: Icon(Icons.memory),
+                    )
+                  : null,
+              body: BlocListener<HomeBloc, HomeState>(
+                listenWhen: (p, c) => p.latestView != c.latestView,
+                listener: (context, state) {
+                  final view = state.latestView;
+                  if (view != null) {
+                    // Only open the last opened view if the [TabsState.currentPageManager] current opened plugin is blank and the last opened view is not null.
+                    // All opened widgets that display on the home screen are in the form of plugins. There is a list of built-in plugins defined in the [PluginType] enum, including board, grid and trash.
+                    final currentPageManager =
+                        context.read<TabsBloc>().state.currentPageManager;
+
+                    if (currentPageManager.plugin.pluginType ==
+                        PluginType.blank) {
+                      getIt<TabsBloc>().add(
+                        TabsEvent.openPlugin(plugin: view.plugin()),
+                      );
+                    }
                   }
-                }
-              },
-              child: BlocBuilder<HomeSettingBloc, HomeSettingState>(
-                buildWhen: (previous, current) => previous != current,
-                builder: (context, state) => BlocProvider(
-                  create: (_) => UserWorkspaceBloc(userProfile: userProfile)
-                    ..add(const UserWorkspaceEvent.initial()),
-                  child: HomeHotKeys(
-                    userProfile: userProfile,
-                    child: FlowyContainer(
-                      Theme.of(context).colorScheme.surface,
-                      child: _buildBody(context, userProfile, workspaceSetting),
+                },
+                child: BlocBuilder<HomeSettingBloc, HomeSettingState>(
+                  buildWhen: (previous, current) => previous != current,
+                  builder: (context, state) => BlocProvider(
+                    create: (_) => UserWorkspaceBloc(userProfile: userProfile)
+                      ..add(const UserWorkspaceEvent.initial()),
+                    child: HomeHotKeys(
+                      userProfile: userProfile,
+                      child: FlowyContainer(
+                        Theme.of(context).colorScheme.surface,
+                        child: _buildBody(
+                          context,
+                          userProfile,
+                          workspaceLatest,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -140,26 +157,29 @@ class DesktopHomeScreen extends StatelessWidget {
   Widget _buildBody(
     BuildContext context,
     UserProfilePB userProfile,
-    WorkspaceSettingPB workspaceSetting,
+    WorkspaceLatestPB workspaceSetting,
   ) {
     final layout = HomeLayout(context);
     final homeStack = HomeStack(
       layout: layout,
       delegate: DesktopHomeScreenStackAdaptor(context),
+      userProfile: userProfile,
     );
-    final menu = _buildHomeSidebar(
+    final sidebar = _buildHomeSidebar(
       context,
       layout: layout,
       userProfile: userProfile,
       workspaceSetting: workspaceSetting,
     );
-    final homeMenuResizer = _buildHomeMenuResizer(context, layout: layout);
+
+    final homeMenuResizer =
+        layout.showMenu ? const SidebarResizer() : const SizedBox.shrink();
     final editPanel = _buildEditPanel(context, layout: layout);
 
     return _layoutWidgets(
       layout: layout,
       homeStack: homeStack,
-      homeMenu: menu,
+      sidebar: sidebar,
       editPanel: editPanel,
       bubble: const QuestionBubble(),
       homeMenuResizer: homeMenuResizer,
@@ -170,7 +190,7 @@ class DesktopHomeScreen extends StatelessWidget {
     BuildContext context, {
     required HomeLayout layout,
     required UserProfilePB userProfile,
-    required WorkspaceSettingPB workspaceSetting,
+    required WorkspaceLatestPB workspaceSetting,
   }) {
     final homeMenu = HomeSideBar(
       userProfile: userProfile,
@@ -207,42 +227,9 @@ class DesktopHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHomeMenuResizer(
-    BuildContext context, {
-    required HomeLayout layout,
-  }) {
-    if (!layout.showMenu) {
-      return const SizedBox.shrink();
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
-      child: GestureDetector(
-        dragStartBehavior: DragStartBehavior.down,
-        onHorizontalDragStart: (details) => context
-            .read<HomeSettingBloc>()
-            .add(const HomeSettingEvent.editPanelResizeStart()),
-        onHorizontalDragUpdate: (details) => context
-            .read<HomeSettingBloc>()
-            .add(HomeSettingEvent.editPanelResized(details.localPosition.dx)),
-        onHorizontalDragEnd: (details) => context
-            .read<HomeSettingBloc>()
-            .add(const HomeSettingEvent.editPanelResizeEnd()),
-        onHorizontalDragCancel: () => context
-            .read<HomeSettingBloc>()
-            .add(const HomeSettingEvent.editPanelResizeEnd()),
-        behavior: HitTestBehavior.translucent,
-        child: SizedBox(
-          width: 10,
-          height: MediaQuery.of(context).size.height,
-        ),
-      ),
-    );
-  }
-
   Widget _layoutWidgets({
     required HomeLayout layout,
-    required Widget homeMenu,
+    required Widget sidebar,
     required Widget homeStack,
     required Widget editPanel,
     required Widget bubble,
@@ -276,7 +263,7 @@ class DesktopHomeScreen extends StatelessWidget {
               bottom: 0,
               width: layout.editPanelWidth,
             ),
-        homeMenu
+        sidebar
             .animatedPanelX(
               closeX: -layout.menuWidth,
               isClosed: !layout.showMenu,
@@ -285,7 +272,7 @@ class DesktopHomeScreen extends StatelessWidget {
             )
             .positioned(left: 0, top: 0, width: layout.menuWidth, bottom: 0),
         homeMenuResizer
-            .positioned(left: layout.menuWidth - 5)
+            .positioned(left: layout.menuWidth)
             .animate(layout.animDuration, Curves.easeOutQuad),
       ],
     );

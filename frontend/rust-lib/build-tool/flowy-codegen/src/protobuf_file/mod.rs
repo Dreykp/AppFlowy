@@ -12,8 +12,9 @@ use itertools::Itertools;
 use log::info;
 pub use proto_gen::*;
 pub use proto_info::*;
+use std::fs;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
@@ -75,64 +76,64 @@ pub fn dart_gen(crate_name: &str) {
   }
 }
 
-#[allow(unused_variables)]
-pub fn ts_gen(crate_name: &str, dest_folder_name: &str, project: Project) {
-  // 1. generate the proto files to proto_file_dir
-  #[cfg(feature = "proto_gen")]
-  let proto_crates = gen_proto_files(crate_name);
-
-  for proto_crate in proto_crates {
-    let mut proto_file_paths = vec![];
-    let mut file_names = vec![];
-    let proto_file_output_path = proto_crate
-      .proto_output_path()
-      .to_str()
-      .unwrap()
-      .to_string();
-    let protobuf_output_path = proto_crate
-      .protobuf_crate_path()
-      .to_str()
-      .unwrap()
-      .to_string();
-
-    for (path, file_name) in WalkDir::new(&proto_file_output_path)
-      .into_iter()
-      .filter_map(|e| e.ok())
-      .map(|e| {
-        let path = e.path().to_str().unwrap().to_string();
-        let file_name = e.path().file_stem().unwrap().to_str().unwrap().to_string();
-        (path, file_name)
-      })
-    {
-      if path.ends_with(".proto") {
-        // https://stackoverflow.com/questions/49077147/how-can-i-force-build-rs-to-run-again-without-cleaning-my-whole-project
-        println!("cargo:rerun-if-changed={}", path);
-        proto_file_paths.push(path);
-        file_names.push(file_name);
-      }
-    }
-    let protoc_bin_path = protoc_bin_vendored::protoc_bin_path().unwrap();
-
-    // 2. generate the protobuf files(Dart)
-    #[cfg(feature = "ts")]
-    generate_ts_protobuf_files(
-      dest_folder_name,
-      &proto_file_output_path,
-      &proto_file_paths,
-      &file_names,
-      &protoc_bin_path,
-      &project,
-    );
-
-    // 3. generate the protobuf files(Rust)
-    generate_rust_protobuf_files(
-      &protoc_bin_path,
-      &proto_file_paths,
-      &proto_file_output_path,
-      &protobuf_output_path,
-    );
-  }
-}
+// #[allow(unused_variables)]
+// fn ts_gen(crate_name: &str, dest_folder_name: &str, project: Project) {
+//   // 1. generate the proto files to proto_file_dir
+//   #[cfg(feature = "proto_gen")]
+//   let proto_crates = gen_proto_files(crate_name);
+//
+//   for proto_crate in proto_crates {
+//     let mut proto_file_paths = vec![];
+//     let mut file_names = vec![];
+//     let proto_file_output_path = proto_crate
+//       .proto_output_path()
+//       .to_str()
+//       .unwrap()
+//       .to_string();
+//     let protobuf_output_path = proto_crate
+//       .protobuf_crate_path()
+//       .to_str()
+//       .unwrap()
+//       .to_string();
+//
+//     for (path, file_name) in WalkDir::new(&proto_file_output_path)
+//       .into_iter()
+//       .filter_map(|e| e.ok())
+//       .map(|e| {
+//         let path = e.path().to_str().unwrap().to_string();
+//         let file_name = e.path().file_stem().unwrap().to_str().unwrap().to_string();
+//         (path, file_name)
+//       })
+//     {
+//       if path.ends_with(".proto") {
+//         // https://stackoverflow.com/questions/49077147/how-can-i-force-build-rs-to-run-again-without-cleaning-my-whole-project
+//         println!("cargo:rerun-if-changed={}", path);
+//         proto_file_paths.push(path);
+//         file_names.push(file_name);
+//       }
+//     }
+//     let protoc_bin_path = protoc_bin_vendored::protoc_bin_path().unwrap();
+//
+//     // 2. generate the protobuf files(Dart)
+//     #[cfg(feature = "ts")]
+//     generate_ts_protobuf_files(
+//       dest_folder_name,
+//       &proto_file_output_path,
+//       &proto_file_paths,
+//       &file_names,
+//       &protoc_bin_path,
+//       &project,
+//     );
+//
+//     // 3. generate the protobuf files(Rust)
+//     generate_rust_protobuf_files(
+//       &protoc_bin_path,
+//       &proto_file_paths,
+//       &proto_file_output_path,
+//       &protobuf_output_path,
+//     );
+//   }
+// }
 
 fn generate_rust_protobuf_files(
   protoc_bin_path: &Path,
@@ -147,6 +148,38 @@ fn generate_rust_protobuf_files(
     .include(proto_file_output_path)
     .run()
     .expect("Running rust protoc failed.");
+  remove_box_pointers_lint_from_all_except_mod(protobuf_output_path);
+}
+fn remove_box_pointers_lint_from_all_except_mod(dir_path: &str) {
+  let dir = fs::read_dir(dir_path).expect("Failed to read directory");
+  for entry in dir {
+    let entry = entry.expect("Failed to read directory entry");
+    let path = entry.path();
+
+    // Skip directories and mod.rs
+    if path.is_file() {
+      if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
+        if file_name != "mod.rs" {
+          remove_box_pointers_lint(&path);
+        }
+      }
+    }
+  }
+}
+
+fn remove_box_pointers_lint(file_path: &Path) {
+  let file = File::open(file_path).expect("Failed to open file");
+  let reader = BufReader::new(file);
+  let lines: Vec<String> = reader
+    .lines()
+    .map_while(Result::ok)
+    .filter(|line| !line.contains("#![allow(box_pointers)]"))
+    .collect();
+
+  let mut file = File::create(file_path).expect("Failed to create file");
+  for line in lines {
+    writeln!(file, "{}", line).expect("Failed to write line");
+  }
 }
 
 #[cfg(feature = "ts")]

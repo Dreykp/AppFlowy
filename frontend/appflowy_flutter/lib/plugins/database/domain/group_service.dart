@@ -1,5 +1,5 @@
 import 'package:appflowy_backend/dispatch/dispatch.dart';
-import 'package:appflowy_backend/protobuf/flowy-database2/group.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
 import 'package:appflowy_result/appflowy_result.dart';
 
@@ -10,22 +10,22 @@ class GroupBackendService {
 
   Future<FlowyResult<void, FlowyError>> groupByField({
     required String fieldId,
+    required List<int> settingContent,
   }) {
     final payload = GroupByFieldPayloadPB.create()
       ..viewId = viewId
-      ..fieldId = fieldId;
+      ..fieldId = fieldId
+      ..settingContent = settingContent;
 
     return DatabaseEventSetGroupByField(payload).send();
   }
 
   Future<FlowyResult<void, FlowyError>> updateGroup({
     required String groupId,
-    required String fieldId,
     String? name,
     bool? visible,
   }) {
     final payload = UpdateGroupPB.create()
-      ..fieldId = fieldId
       ..viewId = viewId
       ..groupId = groupId;
 

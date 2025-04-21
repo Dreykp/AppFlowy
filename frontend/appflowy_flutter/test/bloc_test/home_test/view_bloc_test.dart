@@ -182,14 +182,14 @@ void main() {
     await blocResponseFuture();
     assert(viewBloc.state.lastCreatedView!.name == gird);
 
-    var workspaceSetting =
+    var workspaceLatest =
         await FolderEventGetCurrentWorkspaceSetting().send().then(
               (result) => result.fold(
                 (l) => l,
                 (r) => throw Exception(),
               ),
             );
-    workspaceSetting.latestView.id == viewBloc.state.lastCreatedView!.id;
+    workspaceLatest.latestView.id == viewBloc.state.lastCreatedView!.id;
 
     // ignore: unused_local_variable
     final documentBloc = DocumentBloc(documentId: document.id)
@@ -198,14 +198,13 @@ void main() {
       );
     await blocResponseFuture();
 
-    workspaceSetting =
-        await FolderEventGetCurrentWorkspaceSetting().send().then(
-              (result) => result.fold(
-                (l) => l,
-                (r) => throw Exception(),
-              ),
-            );
-    workspaceSetting.latestView.id == document.id;
+    workspaceLatest = await FolderEventGetCurrentWorkspaceSetting().send().then(
+          (result) => result.fold(
+            (l) => l,
+            (r) => throw Exception(),
+          ),
+        );
+    workspaceLatest.latestView.id == document.id;
   });
 
   test('create views', () async {
@@ -213,6 +212,9 @@ void main() {
     const layouts = ViewLayoutPB.values;
     for (var i = 0; i < layouts.length; i++) {
       final layout = layouts[i];
+      if (layout == ViewLayoutPB.Chat) {
+        continue;
+      }
       viewBloc.add(
         ViewEvent.createView(
           'Test $layout',

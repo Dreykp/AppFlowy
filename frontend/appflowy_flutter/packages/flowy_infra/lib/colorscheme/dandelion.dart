@@ -1,3 +1,4 @@
+import 'package:flowy_infra/colorscheme/default_colorscheme.dart';
 import 'package:flutter/material.dart';
 
 import 'colorscheme.dart';
@@ -64,6 +65,7 @@ class DandelionColorScheme extends FlowyColorScheme {
           icon: _lightShader1,
           text: _lightShader1,
           secondaryText: _lightShader1,
+          strongText: Colors.black,
           input: _white,
           hint: _lightShader3,
           primary: _lightDandelionYellow,
@@ -80,6 +82,11 @@ class DandelionColorScheme extends FlowyColorScheme {
           toggleButtonBGColor: _lightDandelionYellow,
           calendarWeekendBGColor: const Color(0xFFFBFBFC),
           gridRowCountColor: _black,
+          borderColor: ColorSchemeConstants.lightBorderColor,
+          scrollbarColor: const Color(0x3F171717),
+          scrollbarHoverColor: const Color(0x7F171717),
+          lightIconColor: const Color(0xFF8F959E),
+          toolbarHoverColor: const Color(0xFFF2F4F7),
         );
 
   const DandelionColorScheme.dark()
@@ -119,6 +126,7 @@ class DandelionColorScheme extends FlowyColorScheme {
           icon: _darkShader5,
           text: _darkShader5,
           secondaryText: _darkShader5,
+          strongText: Colors.white,
           input: _darkInput,
           hint: _darkShader5,
           primary: _darkMain1,
@@ -133,5 +141,10 @@ class DandelionColorScheme extends FlowyColorScheme {
           toggleButtonBGColor: _darkShader1,
           calendarWeekendBGColor: const Color(0xff121212),
           gridRowCountColor: _darkMain1,
+          borderColor: ColorSchemeConstants.darkBorderColor,
+          scrollbarColor: const Color(0x40FFFFFF),
+          scrollbarHoverColor: const Color(0x80FFFFFF),
+          lightIconColor: const Color(0xFF8F959E),
+          toolbarHoverColor: _lightShader6,
         );
 }

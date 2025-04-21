@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/core/helpers/url_launcher.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/shared/error_page/error_page.dart';
 import 'package:appflowy/workspace/presentation/settings/widgets/theme_upload/theme_upload_view.dart';
 import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flowy_infra_ui/widget/buttons/secondary_button.dart';
-import 'package:flowy_infra_ui/widget/error_page.dart';
+import 'package:flutter/material.dart';
 
 class ThemeUploadLearnMoreButton extends StatelessWidget {
   const ThemeUploadLearnMoreButton({super.key});
@@ -21,7 +21,7 @@ class ThemeUploadLearnMoreButton extends StatelessWidget {
       height: ThemeUploadWidget.buttonSize.height,
       child: IntrinsicWidth(
         child: SecondaryButton(
-          outlineColor: Theme.of(context).colorScheme.onBackground,
+          outlineColor: AFThemeExtension.of(context).onBackground,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: FlowyText.medium(
@@ -31,7 +31,7 @@ class ThemeUploadLearnMoreButton extends StatelessWidget {
           ),
           onPressed: () async {
             final uri = Uri.parse(learnMoreURL);
-            await afLaunchUrl(
+            await afLaunchUri(
               uri,
               context: context,
               onFailure: (_) async {

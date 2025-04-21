@@ -29,13 +29,15 @@ class EmojiText extends StatelessWidget {
       emoji,
       fontSize: fontSize,
       textAlign: textAlign,
+      strutStyle: const StrutStyle(forceStrutHeight: true),
       fallbackFontFamily: _cachedFallbackFontFamily,
       lineHeight: lineHeight,
+      isEmoji: true,
     );
   }
 
   void _loadFallbackFontFamily() {
-    if (Platform.isLinux || Platform.isAndroid) {
+    if (Platform.isLinux) {
       final notoColorEmoji = GoogleFonts.notoColorEmoji().fontFamily;
       if (notoColorEmoji != null) {
         _cachedFallbackFontFamily = [notoColorEmoji];

@@ -1,9 +1,10 @@
-library document_plugin;
+library;
 
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/document/application/document_appearance_cubit.dart';
 import 'package:appflowy/startup/plugin/plugin.dart';
+import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/presentation/home/home_stack.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
@@ -44,10 +45,13 @@ class DatabaseDocumentPluginBuilder extends PluginBuilder {
   String get menuName => LocaleKeys.document_menuName.tr();
 
   @override
-  FlowySvgData get icon => FlowySvgs.document_s;
+  FlowySvgData get icon => FlowySvgs.icon_document_s;
 
   @override
   PluginType get pluginType => PluginType.databaseDocument;
+
+  @override
+  ViewLayoutPB get layoutType => ViewLayoutPB.Document;
 }
 
 class DatabaseDocumentPlugin extends Plugin {
@@ -95,10 +99,17 @@ class DatabaseDocumentPluginWidgetBuilder extends PluginWidgetBuilder
   final Selection? initialSelection;
 
   @override
+  String? get viewName => view.nameOrDefault;
+
+  @override
   EdgeInsets get contentPadding => EdgeInsets.zero;
 
   @override
-  Widget buildWidget({PluginContext? context, required bool shrinkWrap}) {
+  Widget buildWidget({
+    required PluginContext context,
+    required bool shrinkWrap,
+    Map<String, dynamic>? data,
+  }) {
     return BlocBuilder<DocumentAppearanceCubit, DocumentAppearance>(
       builder: (_, state) => DatabaseDocumentPage(
         key: ValueKey(documentId),
@@ -116,7 +127,8 @@ class DatabaseDocumentPluginWidgetBuilder extends PluginWidgetBuilder
       ViewTitleBarWithRow(view: view, databaseId: databaseId, rowId: rowId);
 
   @override
-  Widget tabBarItem(String pluginId) => const SizedBox.shrink();
+  Widget tabBarItem(String pluginId, [bool shortForm = false]) =>
+      const SizedBox.shrink();
 
   @override
   Widget? get rightBarItem => const SizedBox.shrink();

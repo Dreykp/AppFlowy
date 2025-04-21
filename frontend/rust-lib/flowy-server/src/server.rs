@@ -1,19 +1,21 @@
 use client_api::ws::ConnectState;
 use client_api::ws::WSConnectStateReceiver;
 use client_api::ws::WebSocketChannel;
-use flowy_storage::ObjectStorageService;
+use flowy_search_pub::cloud::SearchCloudService;
 use std::sync::Arc;
 
 use anyhow::Error;
+use arc_swap::ArcSwapOption;
 use client_api::collab_sync::ServerCollabMessage;
-use parking_lot::RwLock;
+use flowy_ai_pub::cloud::ChatCloudService;
 use tokio_stream::wrappers::WatchStream;
 #[cfg(feature = "enable_supabase")]
 use {collab_entity::CollabObject, collab_plugins::cloud_storage::RemoteCollabStorage};
 
-use flowy_database_pub::cloud::DatabaseCloudService;
+use flowy_database_pub::cloud::{DatabaseAIService, DatabaseCloudService};
 use flowy_document_pub::cloud::DocumentCloudService;
 use flowy_folder_pub::cloud::FolderCloudService;
+use flowy_storage_pub::cloud::StorageCloudService;
 use flowy_user_pub::cloud::UserCloudService;
 use flowy_user_pub::entities::UserTokenState;
 
@@ -39,7 +41,9 @@ where
 /// and functionalities in AppFlowy. The methods provided ensure efficient, asynchronous operations
 /// for managing and accessing user data, folders, collaborative objects, and documents in a cloud environment.
 pub trait AppFlowyServer: Send + Sync + 'static {
-  fn set_token(&self, _token: &str) -> Result<(), Error> {
+  fn set_token(&self, _token: &str) -> Result<(), Error>;
+
+  fn set_ai_model(&self, _ai_model: &str) -> Result<(), Error> {
     Ok(())
   }
 
@@ -86,6 +90,8 @@ pub trait AppFlowyServer: Send + Sync + 'static {
   /// An `Arc` wrapping the `DatabaseCloudService` interface.
   fn database_service(&self) -> Arc<dyn DatabaseCloudService>;
 
+  fn database_ai_service(&self) -> Option<Arc<dyn DatabaseAIService>>;
+
   /// Facilitates cloud-based document management. This service offers operations for updating documents,
   /// fetching snapshots, and accessing primary document data in an asynchronous manner.
   ///
@@ -93,6 +99,12 @@ pub trait AppFlowyServer: Send + Sync + 'static {
   ///
   /// An `Arc` wrapping the `DocumentCloudService` interface.
   fn document_service(&self) -> Arc<dyn DocumentCloudService>;
+
+  fn chat_service(&self) -> Arc<dyn ChatCloudService>;
+
+  /// Bridge for the Cloud AI Search features
+  ///
+  fn search_service(&self) -> Option<Arc<dyn SearchCloudService>>;
 
   /// Manages collaborative objects within a remote storage system. This includes operations such as
   /// checking storage status, retrieving updates and snapshots, and dispatching updates. The service
@@ -133,27 +145,27 @@ pub trait AppFlowyServer: Send + Sync + 'static {
     Ok(None)
   }
 
-  fn file_storage(&self) -> Option<Arc<dyn ObjectStorageService>>;
+  fn file_storage(&self) -> Option<Arc<dyn StorageCloudService>>;
 }
 
 pub struct EncryptionImpl {
-  secret: RwLock<Option<String>>,
+  secret: ArcSwapOption<String>,
 }
 
 impl EncryptionImpl {
   pub fn new(secret: Option<String>) -> Self {
     Self {
-      secret: RwLock::new(secret),
+      secret: ArcSwapOption::from(secret.map(Arc::new)),
     }
   }
 }
 
 impl AppFlowyEncryption for EncryptionImpl {
   fn get_secret(&self) -> Option<String> {
-    self.secret.read().clone()
+    self.secret.load().as_ref().map(|s| s.to_string())
   }
 
   fn set_secret(&self, secret: String) {
-    *self.secret.write() = Some(secret);
+    self.secret.store(Some(secret.into()));
   }
 }

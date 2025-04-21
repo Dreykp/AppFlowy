@@ -11,8 +11,8 @@ async fn restore_document() {
   let test = DocumentTest::new();
 
   // create a document
-  let doc_id: String = gen_document_id();
-  let data = default_document_data();
+  let doc_id = gen_document_id();
+  let data = default_document_data(&doc_id.to_string());
   let uid = test.user_service.user_id().unwrap();
   test
     .create_document(uid, &doc_id, Some(data.clone()))
@@ -20,12 +20,14 @@ async fn restore_document() {
     .unwrap();
   let data_a = test.get_document_data(&doc_id).await.unwrap();
   assert_eq!(data_a, data);
+  test.open_document(&doc_id).await.unwrap();
 
   let data_b = test
-    .get_document(&doc_id)
+    .editable_document(&doc_id)
     .await
     .unwrap()
-    .lock()
+    .read()
+    .await
     .get_document_data()
     .unwrap();
   // close a document
@@ -36,10 +38,11 @@ async fn restore_document() {
   _ = test.create_document(uid, &doc_id, Some(data.clone())).await;
   // open a document
   let data_b = test
-    .get_document(&doc_id)
+    .editable_document(&doc_id)
     .await
     .unwrap()
-    .lock()
+    .read()
+    .await
     .get_document_data()
     .unwrap();
   // close a document
@@ -52,15 +55,17 @@ async fn restore_document() {
 async fn document_apply_insert_action() {
   let test = DocumentTest::new();
   let uid = test.user_service.user_id().unwrap();
-  let doc_id: String = gen_document_id();
-  let data = default_document_data();
+  let doc_id = gen_document_id();
+  let data = default_document_data(&doc_id.to_string());
 
   // create a document
   _ = test.create_document(uid, &doc_id, Some(data.clone())).await;
 
   // open a document
-  let document = test.get_document(&doc_id).await.unwrap();
-  let page_block = document.lock().get_block(&data.page_id).unwrap();
+  test.open_document(&doc_id).await.unwrap();
+  let document = test.editable_document(&doc_id).await.unwrap();
+  let mut document = document.write().await;
+  let page_block = document.get_block(&data.page_id).unwrap();
 
   // insert a text block
   let text_block = Block {
@@ -82,17 +87,19 @@ async fn document_apply_insert_action() {
       text_id: None,
     },
   };
-  document.lock().apply_action(vec![insert_text_action]);
-  let data_a = document.lock().get_document_data().unwrap();
+  document.apply_action(vec![insert_text_action]).unwrap();
+  let data_a = document.get_document_data().unwrap();
+  drop(document);
   // close the original document
   _ = test.close_document(&doc_id).await;
 
   // re-open the document
   let data_b = test
-    .get_document(&doc_id)
+    .editable_document(&doc_id)
     .await
     .unwrap()
-    .lock()
+    .read()
+    .await
     .get_document_data()
     .unwrap();
   // close a document
@@ -104,16 +111,18 @@ async fn document_apply_insert_action() {
 #[tokio::test]
 async fn document_apply_update_page_action() {
   let test = DocumentTest::new();
-  let doc_id: String = gen_document_id();
+  let doc_id = gen_document_id();
   let uid = test.user_service.user_id().unwrap();
-  let data = default_document_data();
+  let data = default_document_data(&doc_id.to_string());
 
   // create a document
   _ = test.create_document(uid, &doc_id, Some(data.clone())).await;
 
   // open a document
-  let document = test.get_document(&doc_id).await.unwrap();
-  let page_block = document.lock().get_block(&data.page_id).unwrap();
+  test.open_document(&doc_id).await.unwrap();
+  let document = test.editable_document(&doc_id).await.unwrap();
+  let mut document = document.write().await;
+  let page_block = document.get_block(&data.page_id).unwrap();
 
   let mut page_block_clone = page_block;
   page_block_clone.data = HashMap::new();
@@ -133,13 +142,14 @@ async fn document_apply_update_page_action() {
   };
   let actions = vec![action];
   tracing::trace!("{:?}", &actions);
-  document.lock().apply_action(actions);
-  let page_block_old = document.lock().get_block(&data.page_id).unwrap();
+  document.apply_action(actions).unwrap();
+  let page_block_old = document.get_block(&data.page_id).unwrap();
+  drop(document);
   _ = test.close_document(&doc_id).await;
 
   // re-open the document
-  let document = test.get_document(&doc_id).await.unwrap();
-  let page_block_new = document.lock().get_block(&data.page_id).unwrap();
+  let document = test.editable_document(&doc_id).await.unwrap();
+  let page_block_new = document.read().await.get_block(&data.page_id).unwrap();
   assert_eq!(page_block_old, page_block_new);
   assert!(page_block_new.data.contains_key("delta"));
 }
@@ -148,15 +158,17 @@ async fn document_apply_update_page_action() {
 async fn document_apply_update_action() {
   let test = DocumentTest::new();
   let uid = test.user_service.user_id().unwrap();
-  let doc_id: String = gen_document_id();
-  let data = default_document_data();
+  let doc_id = gen_document_id();
+  let data = default_document_data(&doc_id.to_string());
 
   // create a document
   _ = test.create_document(uid, &doc_id, Some(data.clone())).await;
 
   // open a document
-  let document = test.get_document(&doc_id).await.unwrap();
-  let page_block = document.lock().get_block(&data.page_id).unwrap();
+  test.open_document(&doc_id).await.unwrap();
+  let document = test.editable_document(&doc_id).await.unwrap();
+  let mut document = document.write().await;
+  let page_block = document.get_block(&data.page_id).unwrap();
 
   // insert a text block
   let text_block_id = gen_id();
@@ -179,10 +191,10 @@ async fn document_apply_update_action() {
       text_id: None,
     },
   };
-  document.lock().apply_action(vec![insert_text_action]);
+  document.apply_action(vec![insert_text_action]).unwrap();
 
   // update the text block
-  let existing_text_block = document.lock().get_block(&text_block_id).unwrap();
+  let existing_text_block = document.get_block(&text_block_id).unwrap();
   let mut updated_text_block_data = HashMap::new();
   updated_text_block_data.insert("delta".to_string(), Value::String("delta".to_string()));
   let updated_text_block = Block {
@@ -204,13 +216,14 @@ async fn document_apply_update_action() {
       text_id: None,
     },
   };
-  document.lock().apply_action(vec![update_text_action]);
+  document.apply_action(vec![update_text_action]).unwrap();
+  drop(document);
   // close the original document
   _ = test.close_document(&doc_id).await;
 
   // re-open the document
-  let document = test.get_document(&doc_id).await.unwrap();
-  let block = document.lock().get_block(&text_block_id).unwrap();
+  let document = test.editable_document(&doc_id).await.unwrap();
+  let block = document.read().await.get_block(&text_block_id).unwrap();
   assert_eq!(block.data, updated_text_block_data);
   // close a document
   _ = test.close_document(&doc_id).await;

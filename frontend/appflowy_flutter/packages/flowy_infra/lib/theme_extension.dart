@@ -5,6 +5,9 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
   static AFThemeExtension of(BuildContext context) =>
       Theme.of(context).extension<AFThemeExtension>()!;
 
+  static AFThemeExtension? maybeOf(BuildContext context) =>
+      Theme.of(context).extension<AFThemeExtension>();
+
   const AFThemeExtension({
     required this.warning,
     required this.success,
@@ -23,6 +26,7 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
     required this.toggleOffFill,
     required this.textColor,
     required this.secondaryTextColor,
+    required this.strongText,
     required this.calloutBGColor,
     required this.tableCellBGColor,
     required this.calendarWeekendBGColor,
@@ -32,6 +36,13 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
     required this.progressBarBGColor,
     required this.toggleButtonBGColor,
     required this.gridRowCountColor,
+    required this.background,
+    required this.onBackground,
+    required this.borderColor,
+    required this.scrollbarColor,
+    required this.scrollbarHoverColor,
+    required this.toolbarHoverColor,
+    required this.lightIconColor,
   });
 
   final Color? warning;
@@ -49,6 +60,7 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
 
   final Color textColor;
   final Color secondaryTextColor;
+  final Color strongText;
   final Color greyHover;
   final Color greySelect;
   final Color lightGreyHover;
@@ -63,6 +75,20 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
   final TextStyle code;
   final TextStyle callout;
   final TextStyle caption;
+
+  final Color background;
+  final Color onBackground;
+
+  /// The color of the border of the widget.
+  ///
+  /// This is used in the divider, outline border, etc.
+  final Color borderColor;
+
+  final Color scrollbarColor;
+  final Color scrollbarHoverColor;
+
+  final Color toolbarHoverColor;
+  final Color lightIconColor;
 
   @override
   AFThemeExtension copyWith({
@@ -79,6 +105,7 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
     Color? tint9,
     Color? textColor,
     Color? secondaryTextColor,
+    Color? strongText,
     Color? calloutBGColor,
     Color? tableCellBGColor,
     Color? greyHover,
@@ -92,6 +119,13 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
     TextStyle? code,
     TextStyle? callout,
     TextStyle? caption,
+    Color? background,
+    Color? onBackground,
+    Color? borderColor,
+    Color? scrollbarColor,
+    Color? scrollbarHoverColor,
+    Color? lightIconColor,
+    Color? toolbarHoverColor,
   }) =>
       AFThemeExtension(
         warning: warning ?? this.warning,
@@ -107,6 +141,7 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
         tint9: tint9 ?? this.tint9,
         textColor: textColor ?? this.textColor,
         secondaryTextColor: secondaryTextColor ?? this.secondaryTextColor,
+        strongText: strongText ?? this.strongText,
         calloutBGColor: calloutBGColor ?? this.calloutBGColor,
         tableCellBGColor: tableCellBGColor ?? this.tableCellBGColor,
         greyHover: greyHover ?? this.greyHover,
@@ -121,6 +156,13 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
         code: code ?? this.code,
         callout: callout ?? this.callout,
         caption: caption ?? this.caption,
+        onBackground: onBackground ?? this.onBackground,
+        background: background ?? this.background,
+        borderColor: borderColor ?? this.borderColor,
+        scrollbarColor: scrollbarColor ?? this.scrollbarColor,
+        scrollbarHoverColor: scrollbarHoverColor ?? this.scrollbarHoverColor,
+        lightIconColor: lightIconColor ?? this.lightIconColor,
+        toolbarHoverColor: toolbarHoverColor ?? this.toolbarHoverColor,
       );
 
   @override
@@ -147,6 +189,11 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
         other.secondaryTextColor,
         t,
       )!,
+      strongText: Color.lerp(
+        strongText,
+        other.strongText,
+        t,
+      )!,
       calloutBGColor: Color.lerp(calloutBGColor, other.calloutBGColor, t)!,
       tableCellBGColor:
           Color.lerp(tableCellBGColor, other.tableCellBGColor, t)!,
@@ -165,6 +212,15 @@ class AFThemeExtension extends ThemeExtension<AFThemeExtension> {
       code: other.code,
       callout: other.callout,
       caption: other.caption,
+      onBackground: Color.lerp(onBackground, other.onBackground, t)!,
+      background: Color.lerp(background, other.background, t)!,
+      borderColor: Color.lerp(borderColor, other.borderColor, t)!,
+      scrollbarColor: Color.lerp(scrollbarColor, other.scrollbarColor, t)!,
+      scrollbarHoverColor:
+          Color.lerp(scrollbarHoverColor, other.scrollbarHoverColor, t)!,
+      lightIconColor: Color.lerp(lightIconColor, other.lightIconColor, t)!,
+      toolbarHoverColor:
+          Color.lerp(toolbarHoverColor, other.toolbarHoverColor, t)!,
     );
   }
 }
@@ -198,16 +254,17 @@ enum FlowyTint {
     return null;
   }
 
-  Color color(BuildContext context) => switch (this) {
-        FlowyTint.tint1 => AFThemeExtension.of(context).tint1,
-        FlowyTint.tint2 => AFThemeExtension.of(context).tint2,
-        FlowyTint.tint3 => AFThemeExtension.of(context).tint3,
-        FlowyTint.tint4 => AFThemeExtension.of(context).tint4,
-        FlowyTint.tint5 => AFThemeExtension.of(context).tint5,
-        FlowyTint.tint6 => AFThemeExtension.of(context).tint6,
-        FlowyTint.tint7 => AFThemeExtension.of(context).tint7,
-        FlowyTint.tint8 => AFThemeExtension.of(context).tint8,
-        FlowyTint.tint9 => AFThemeExtension.of(context).tint9,
+  Color color(BuildContext context, {AFThemeExtension? theme}) =>
+      switch (this) {
+        FlowyTint.tint1 => theme?.tint1 ?? AFThemeExtension.of(context).tint1,
+        FlowyTint.tint2 => theme?.tint2 ?? AFThemeExtension.of(context).tint2,
+        FlowyTint.tint3 => theme?.tint3 ?? AFThemeExtension.of(context).tint3,
+        FlowyTint.tint4 => theme?.tint4 ?? AFThemeExtension.of(context).tint4,
+        FlowyTint.tint5 => theme?.tint5 ?? AFThemeExtension.of(context).tint5,
+        FlowyTint.tint6 => theme?.tint6 ?? AFThemeExtension.of(context).tint6,
+        FlowyTint.tint7 => theme?.tint7 ?? AFThemeExtension.of(context).tint7,
+        FlowyTint.tint8 => theme?.tint8 ?? AFThemeExtension.of(context).tint8,
+        FlowyTint.tint9 => theme?.tint9 ?? AFThemeExtension.of(context).tint9,
       };
 
   String get id => switch (this) {

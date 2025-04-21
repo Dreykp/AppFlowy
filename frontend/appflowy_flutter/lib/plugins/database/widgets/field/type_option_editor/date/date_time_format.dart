@@ -1,12 +1,12 @@
+import 'package:flutter/material.dart';
+
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/database/grid/presentation/layout/sizes.dart';
 import 'package:appflowy/workspace/presentation/widgets/toggle/toggle.dart';
-import 'package:appflowy/workspace/presentation/widgets/toggle/toggle_style.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flutter/material.dart';
 
 class DateFormatButton extends StatelessWidget {
   const DateFormatButton({
@@ -23,7 +23,10 @@ class DateFormatButton extends StatelessWidget {
     return SizedBox(
       height: GridSize.popoverItemHeight,
       child: FlowyButton(
-        text: FlowyText.medium(LocaleKeys.grid_field_dateFormat.tr()),
+        text: FlowyText(
+          LocaleKeys.grid_field_dateFormat.tr(),
+          lineHeight: 1.0,
+        ),
         onTap: onTap,
         onHover: onHover,
         rightIcon: const FlowySvg(FlowySvgs.more_s),
@@ -47,7 +50,10 @@ class TimeFormatButton extends StatelessWidget {
     return SizedBox(
       height: GridSize.popoverItemHeight,
       child: FlowyButton(
-        text: FlowyText.medium(LocaleKeys.grid_field_timeFormat.tr()),
+        text: FlowyText(
+          LocaleKeys.grid_field_timeFormat.tr(),
+          lineHeight: 1.0,
+        ),
         onTap: onTap,
         onHover: onHover,
         rightIcon: const FlowySvg(FlowySvgs.more_s),
@@ -68,7 +74,9 @@ class DateFormatList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cells = DateFormatPB.values.map((format) {
+    final cells = DateFormatPB.values
+        .where((value) => value != DateFormatPB.FriendlyFull)
+        .map((format) {
       return DateFormatCell(
         dateFormat: format,
         onSelected: onSelected,
@@ -114,7 +122,10 @@ class DateFormatCell extends StatelessWidget {
     return SizedBox(
       height: GridSize.popoverItemHeight,
       child: FlowyButton(
-        text: FlowyText.medium(dateFormat.title()),
+        text: FlowyText(
+          dateFormat.title(),
+          lineHeight: 1.0,
+        ),
         rightIcon: checkmark,
         onTap: () => onSelected(dateFormat),
       ),
@@ -135,6 +146,8 @@ extension DateFormatExtension on DateFormatPB {
         return LocaleKeys.grid_field_dateFormatUS.tr();
       case DateFormatPB.DayMonthYear:
         return LocaleKeys.grid_field_dateFormatDayMonthYear.tr();
+      case DateFormatPB.FriendlyFull:
+        return LocaleKeys.grid_field_dateFormatFriendly.tr();
       default:
         throw UnimplementedError;
     }
@@ -199,7 +212,10 @@ class TimeFormatCell extends StatelessWidget {
     return SizedBox(
       height: GridSize.popoverItemHeight,
       child: FlowyButton(
-        text: FlowyText.medium(timeFormat.title()),
+        text: FlowyText(
+          timeFormat.title(),
+          lineHeight: 1.0,
+        ),
         rightIcon: checkmark,
         onTap: () => onSelected(timeFormat),
       ),
@@ -224,11 +240,11 @@ class IncludeTimeButton extends StatelessWidget {
   const IncludeTimeButton({
     super.key,
     required this.onChanged,
-    required this.value,
+    required this.includeTime,
   });
 
   final Function(bool value) onChanged;
-  final bool value;
+  final bool includeTime;
 
   @override
   Widget build(BuildContext context) {
@@ -243,12 +259,11 @@ class IncludeTimeButton extends StatelessWidget {
               color: Theme.of(context).iconTheme.color,
             ),
             const HSpace(6),
-            FlowyText.medium(LocaleKeys.grid_field_includeTime.tr()),
+            FlowyText(LocaleKeys.grid_field_includeTime.tr()),
             const Spacer(),
             Toggle(
-              value: value,
+              value: includeTime,
               onChanged: onChanged,
-              style: ToggleStyle.big,
               padding: EdgeInsets.zero,
             ),
           ],

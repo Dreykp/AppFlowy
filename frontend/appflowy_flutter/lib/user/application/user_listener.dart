@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:appflowy/core/notification/folder_notification.dart';
@@ -11,7 +12,6 @@ import 'package:appflowy_backend/protobuf/flowy-folder/workspace.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-notification/protobuf.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/notification.pb.dart'
     as user;
-import 'package:appflowy_backend/protobuf/flowy-user/user_profile.pb.dart';
 import 'package:appflowy_backend/rust_stream.dart';
 import 'package:appflowy_result/appflowy_result.dart';
 import 'package:flowy_infra/notifier.dart';
@@ -23,6 +23,9 @@ typedef DidUpdateUserWorkspacesCallback = void Function(
   RepeatedUserWorkspacePB workspaces,
 );
 typedef UserProfileNotifyValue = FlowyResult<UserProfilePB, FlowyError>;
+typedef DidUpdateUserWorkspaceSetting = void Function(
+  WorkspaceSettingsPB settings,
+);
 
 class UserListener {
   UserListener({
@@ -37,28 +40,26 @@ class UserListener {
 
   /// Update notification about _all_ of the users workspaces
   ///
-  DidUpdateUserWorkspacesCallback? didUpdateUserWorkspaces;
+  DidUpdateUserWorkspacesCallback? onUserWorkspaceListUpdated;
 
   /// Update notification about _one_ workspace
   ///
-  DidUpdateUserWorkspaceCallback? didUpdateUserWorkspace;
+  DidUpdateUserWorkspaceCallback? onUserWorkspaceUpdated;
+  DidUpdateUserWorkspaceSetting? onUserWorkspaceSettingUpdated;
 
   void start({
     void Function(UserProfileNotifyValue)? onProfileUpdated,
-    void Function(RepeatedUserWorkspacePB)? didUpdateUserWorkspaces,
-    void Function(UserWorkspacePB)? didUpdateUserWorkspace,
+    DidUpdateUserWorkspacesCallback? onUserWorkspaceListUpdated,
+    void Function(UserWorkspacePB)? onUserWorkspaceUpdated,
+    DidUpdateUserWorkspaceSetting? onUserWorkspaceSettingUpdated,
   }) {
     if (onProfileUpdated != null) {
       _profileNotifier?.addPublishListener(onProfileUpdated);
     }
 
-    if (didUpdateUserWorkspaces != null) {
-      this.didUpdateUserWorkspaces = didUpdateUserWorkspaces;
-    }
-
-    if (didUpdateUserWorkspace != null) {
-      this.didUpdateUserWorkspace = didUpdateUserWorkspace;
-    }
+    this.onUserWorkspaceListUpdated = onUserWorkspaceListUpdated;
+    this.onUserWorkspaceUpdated = onUserWorkspaceUpdated;
+    this.onUserWorkspaceSettingUpdated = onUserWorkspaceSettingUpdated;
 
     _userParser = UserNotificationParser(
       id: _userProfile.id.toString(),
@@ -92,13 +93,18 @@ class UserListener {
         result.map(
           (r) {
             final value = RepeatedUserWorkspacePB.fromBuffer(r);
-            didUpdateUserWorkspaces?.call(value);
+            onUserWorkspaceListUpdated?.call(value);
           },
         );
         break;
       case user.UserNotification.DidUpdateUserWorkspace:
         result.map(
-          (r) => didUpdateUserWorkspace?.call(UserWorkspacePB.fromBuffer(r)),
+          (r) => onUserWorkspaceUpdated?.call(UserWorkspacePB.fromBuffer(r)),
+        );
+      case user.UserNotification.DidUpdateWorkspaceSetting:
+        result.map(
+          (r) => onUserWorkspaceSettingUpdated
+              ?.call(WorkspaceSettingsPB.fromBuffer(r)),
         );
         break;
       default:
@@ -107,22 +113,21 @@ class UserListener {
   }
 }
 
-typedef WorkspaceSettingNotifyValue
-    = FlowyResult<WorkspaceSettingPB, FlowyError>;
+typedef WorkspaceLatestNotifyValue = FlowyResult<WorkspaceLatestPB, FlowyError>;
 
-class UserWorkspaceListener {
-  UserWorkspaceListener();
+class FolderListener {
+  FolderListener();
 
-  PublishNotifier<WorkspaceSettingNotifyValue>? _settingChangedNotifier =
+  final PublishNotifier<WorkspaceLatestNotifyValue> _latestChangedNotifier =
       PublishNotifier();
 
   FolderNotificationListener? _listener;
 
   void start({
-    void Function(WorkspaceSettingNotifyValue)? onSettingUpdated,
+    void Function(WorkspaceLatestNotifyValue)? onLatestUpdated,
   }) {
-    if (onSettingUpdated != null) {
-      _settingChangedNotifier?.addPublishListener(onSettingUpdated);
+    if (onLatestUpdated != null) {
+      _latestChangedNotifier.addPublishListener(onLatestUpdated);
     }
 
     // The "current-workspace" is predefined in the backend. Do not try to
@@ -140,13 +145,11 @@ class UserWorkspaceListener {
     switch (ty) {
       case FolderNotification.DidUpdateWorkspaceSetting:
         result.fold(
-          (payload) => _settingChangedNotifier?.value =
-              FlowyResult.success(WorkspaceSettingPB.fromBuffer(payload)),
-          (error) =>
-              _settingChangedNotifier?.value = FlowyResult.failure(error),
+          (payload) => _latestChangedNotifier.value =
+              FlowyResult.success(WorkspaceLatestPB.fromBuffer(payload)),
+          (error) => _latestChangedNotifier.value = FlowyResult.failure(error),
         );
         break;
-
       default:
         break;
     }
@@ -154,8 +157,6 @@ class UserWorkspaceListener {
 
   Future<void> stop() async {
     await _listener?.stop();
-
-    _settingChangedNotifier?.dispose();
-    _settingChangedNotifier = null;
+    _latestChangedNotifier.dispose();
   }
 }

@@ -14,6 +14,7 @@ pub(crate) enum UserNotification {
   DidUpdateUserWorkspaces = 3,
   DidUpdateCloudConfig = 4,
   DidUpdateUserWorkspace = 5,
+  DidUpdateWorkspaceSetting = 6,
 }
 
 impl std::convert::From<UserNotification> for i32 {

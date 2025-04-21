@@ -60,6 +60,12 @@ class _SelectOptionTextFieldState extends State<SelectOptionTextField> {
         _scrollToEnd();
       });
     }
+
+    if (oldWidget.textController != widget.textController) {
+      oldWidget.textController.removeListener(_onChanged);
+      widget.textController.addListener(_onChanged);
+    }
+
     super.didUpdateWidget(oldWidget);
   }
 
@@ -132,7 +138,10 @@ class _SelectOptionTextFieldState extends State<SelectOptionTextField> {
           (option) => SelectOptionTag(
             option: option,
             onRemove: (option) => widget.onRemove(option),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
           ),
         )
         .toList();

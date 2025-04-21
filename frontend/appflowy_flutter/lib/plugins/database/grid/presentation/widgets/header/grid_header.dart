@@ -4,15 +4,15 @@ import 'package:appflowy/plugins/database/application/field/field_controller.dar
 import 'package:appflowy/plugins/database/domain/field_service.dart';
 import 'package:appflowy/plugins/database/grid/application/grid_bloc.dart';
 import 'package:appflowy/plugins/database/grid/application/grid_header_bloc.dart';
+import 'package:appflowy/plugins/database/tab_bar/tab_bar_view.dart';
 import 'package:appflowy_backend/log.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flowy_infra/size.dart';
 import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:reorderables/reorderables.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 import '../../layout/sizes.dart';
 import 'desktop_field_cell.dart';
@@ -21,11 +21,13 @@ class GridHeaderSliverAdaptor extends StatefulWidget {
   const GridHeaderSliverAdaptor({
     super.key,
     required this.viewId,
+    required this.shrinkWrap,
     required this.anchorScrollController,
   });
 
   final String viewId;
   final ScrollController anchorScrollController;
+  final bool shrinkWrap;
 
   @override
   State<GridHeaderSliverAdaptor> createState() =>
@@ -37,6 +39,9 @@ class _GridHeaderSliverAdaptorState extends State<GridHeaderSliverAdaptor> {
   Widget build(BuildContext context) {
     final fieldController =
         context.read<GridBloc>().databaseController.fieldController;
+    final horizontalPadding =
+        context.read<DatabasePluginWidgetBuilderSize?>()?.horizontalPadding ??
+            0.0;
     return BlocProvider(
       create: (context) {
         return GridHeaderBloc(
@@ -47,9 +52,14 @@ class _GridHeaderSliverAdaptorState extends State<GridHeaderSliverAdaptor> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         controller: widget.anchorScrollController,
-        child: _GridHeader(
-          viewId: widget.viewId,
-          fieldController: fieldController,
+        child: Padding(
+          padding: widget.shrinkWrap
+              ? EdgeInsets.symmetric(horizontal: horizontalPadding)
+              : EdgeInsets.zero,
+          child: _GridHeader(
+            viewId: widget.viewId,
+            fieldController: fieldController,
+          ),
         ),
       ),
     );
@@ -111,7 +121,7 @@ class _GridHeaderState extends State<_GridHeader> {
             ),
             draggingWidgetOpacity: 0,
             header: _cellLeading(),
-            needsLongPressDraggable: PlatformExtension.isMobile,
+            needsLongPressDraggable: UniversalPlatform.isMobile,
             footer: _CellTrailing(viewId: widget.viewId),
             onReorder: (int oldIndex, int newIndex) {
               context
@@ -139,7 +149,9 @@ class _GridHeaderState extends State<_GridHeader> {
   }
 
   Widget _cellLeading() {
-    return SizedBox(width: GridSize.horizontalHeaderPadding + 40);
+    return SizedBox(
+      width: context.read<DatabasePluginWidgetBuilderSize>().horizontalPadding,
+    );
   }
 }
 
@@ -151,11 +163,11 @@ class _CellTrailing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: GridSize.trailHeaderPadding,
-      margin: EdgeInsets.only(right: GridSize.scrollBarSize + Insets.m),
+      width: GridSize.newPropertyButtonWidth,
+      height: GridSize.headerHeight,
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor),
+          bottom: BorderSide(color: AFThemeExtension.of(context).borderColor),
         ),
       ),
       child: CreateFieldButton(
@@ -168,7 +180,7 @@ class _CellTrailing extends StatelessWidget {
   }
 }
 
-class CreateFieldButton extends StatefulWidget {
+class CreateFieldButton extends StatelessWidget {
   const CreateFieldButton({
     super.key,
     required this.viewId,
@@ -179,32 +191,28 @@ class CreateFieldButton extends StatefulWidget {
   final void Function(String fieldId) onFieldCreated;
 
   @override
-  State<CreateFieldButton> createState() => _CreateFieldButtonState();
-}
-
-class _CreateFieldButtonState extends State<CreateFieldButton> {
-  @override
   Widget build(BuildContext context) {
     return FlowyButton(
       margin: GridSize.cellContentInsets,
       radius: BorderRadius.zero,
       text: FlowyText(
+        lineHeight: 1.0,
         LocaleKeys.grid_field_newProperty.tr(),
         overflow: TextOverflow.ellipsis,
       ),
       hoverColor: AFThemeExtension.of(context).greyHover,
       onTap: () async {
         final result = await FieldBackendService.createField(
-          viewId: widget.viewId,
+          viewId: viewId,
         );
         result.fold(
-          (field) => widget.onFieldCreated(field.id),
+          (field) => onFieldCreated(field.id),
           (err) => Log.error("Failed to create field type option: $err"),
         );
       },
       leftIcon: const FlowySvg(
-        FlowySvgs.add_s,
-        size: Size.square(18),
+        FlowySvgs.add_less_padding_s,
+        size: Size.square(16),
       ),
     );
   }

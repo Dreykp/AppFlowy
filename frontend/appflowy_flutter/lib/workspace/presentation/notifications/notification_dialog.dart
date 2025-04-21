@@ -28,25 +28,25 @@ class NotificationDialog extends StatefulWidget {
 
 class _NotificationDialogState extends State<NotificationDialog>
     with SingleTickerProviderStateMixin {
-  late final TabController _controller = TabController(length: 2, vsync: this);
-  final PopoverMutex _mutex = PopoverMutex();
-  final ReminderBloc _reminderBloc = getIt<ReminderBloc>();
+  late final TabController controller = TabController(length: 2, vsync: this);
+  final PopoverMutex mutex = PopoverMutex();
+  final ReminderBloc reminderBloc = getIt<ReminderBloc>();
 
   @override
   void initState() {
     super.initState();
     // Get all the past and upcoming reminders
-    _reminderBloc.add(const ReminderEvent.started());
-    _controller.addListener(_updateState);
+    reminderBloc.add(const ReminderEvent.started());
+    controller.addListener(updateState);
   }
 
-  void _updateState() => setState(() {});
+  void updateState() => setState(() {});
 
   @override
   void dispose() {
-    _mutex.close();
-    _controller.removeListener(_updateState);
-    _controller.dispose();
+    mutex.dispose();
+    controller.removeListener(updateState);
+    controller.dispose();
     super.dispose();
   }
 
@@ -54,7 +54,7 @@ class _NotificationDialogState extends State<NotificationDialog>
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider<ReminderBloc>.value(value: _reminderBloc),
+        BlocProvider<ReminderBloc>.value(value: reminderBloc),
         BlocProvider<NotificationFilterBloc>(
           create: (_) => NotificationFilterBloc(),
         ),
@@ -63,41 +63,43 @@ class _NotificationDialogState extends State<NotificationDialog>
         builder: (context, filterState) =>
             BlocBuilder<ReminderBloc, ReminderState>(
           builder: (context, state) {
-            final List<ReminderPB> pastReminders = state.pastReminders
-                .where((r) => filterState.showUnreadsOnly ? !r.isRead : true)
-                .sortByScheduledAt();
+            List<ReminderPB> pastReminders =
+                state.pastReminders.sortByScheduledAt();
+            if (filterState.showUnreadsOnly) {
+              pastReminders = pastReminders.where((r) => !r.isRead).toList();
+            }
 
-            final List<ReminderPB> upcomingReminders =
+            final upcomingReminders =
                 state.upcomingReminders.sortByScheduledAt();
+            final hasUnreads = pastReminders.any((r) => !r.isRead);
 
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const NotificationHubTitle(),
-                NotificationTabBar(tabController: _controller),
+                NotificationTabBar(tabController: controller),
                 Expanded(
                   child: TabBarView(
-                    controller: _controller,
+                    controller: controller,
                     children: [
                       NotificationsView(
                         shownReminders: pastReminders,
-                        reminderBloc: _reminderBloc,
+                        reminderBloc: reminderBloc,
                         views: widget.views,
-                        onDelete: _onDelete,
-                        onAction: _onAction,
+                        onAction: onAction,
                         onReadChanged: _onReadChanged,
                         actionBar: InboxActionBar(
-                          hasUnreads: state.hasUnreads,
+                          hasUnreads: hasUnreads,
                           showUnreadsOnly: filterState.showUnreadsOnly,
                         ),
                       ),
                       NotificationsView(
                         shownReminders: upcomingReminders,
-                        reminderBloc: _reminderBloc,
+                        reminderBloc: reminderBloc,
                         views: widget.views,
                         isUpcoming: true,
-                        onAction: _onAction,
+                        onAction: onAction,
                       ),
                     ],
                   ),
@@ -110,20 +112,16 @@ class _NotificationDialogState extends State<NotificationDialog>
     );
   }
 
-  void _onAction(ReminderPB reminder, int? path, ViewPB? view) {
-    _reminderBloc.add(
+  void onAction(ReminderPB reminder, int? path, ViewPB? view) {
+    reminderBloc.add(
       ReminderEvent.pressReminder(reminderId: reminder.id, path: path),
     );
 
     widget.mutex.close();
   }
 
-  void _onDelete(ReminderPB reminder) {
-    _reminderBloc.add(ReminderEvent.remove(reminderId: reminder.id));
-  }
-
   void _onReadChanged(ReminderPB reminder, bool isRead) {
-    _reminderBloc.add(
+    reminderBloc.add(
       ReminderEvent.update(ReminderUpdate(id: reminder.id, isRead: isRead)),
     );
   }

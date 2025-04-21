@@ -1,81 +1,118 @@
 import 'package:appflowy/core/frameless_window.dart';
 import 'package:appflowy/env/cloud_env.dart';
+import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/shared/settings/show_settings.dart';
 import 'package:appflowy/shared/window_title_bar.dart';
 import 'package:appflowy/user/application/sign_in_bloc.dart';
+import 'package:appflowy/user/presentation/screens/sign_in_screen/widgets/anonymous_sign_in_button.dart';
 import 'package:appflowy/user/presentation/screens/sign_in_screen/widgets/widgets.dart';
 import 'package:appflowy/user/presentation/widgets/widgets.dart';
-import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class DesktopSignInScreen extends StatelessWidget {
-  const DesktopSignInScreen({super.key});
+  const DesktopSignInScreen({
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const indicatorMinHeight = 4.0;
+    final theme = AppFlowyTheme.of(context);
+
     return BlocBuilder<SignInBloc, SignInState>(
       builder: (context, state) {
+        final bottomPadding = UniversalPlatform.isDesktop ? 20.0 : 24.0;
         return Scaffold(
-          appBar: PreferredSize(
-            preferredSize:
-                Size.fromHeight(PlatformExtension.isWindows ? 40 : 60),
-            child: PlatformExtension.isWindows
-                ? const WindowTitleBar()
-                : const MoveWindowDetector(),
-          ),
+          appBar: _buildAppBar(),
           body: Center(
             child: AuthFormContainer(
               children: [
-                const VSpace(20),
+                const Spacer(),
+
+                // logo and title
                 FlowyLogoTitle(
                   title: LocaleKeys.welcomeText.tr(),
-                  logoSize: const Size(60, 60),
+                  logoSize: Size.square(36),
                 ),
-                const VSpace(20),
+                VSpace(theme.spacing.xxl),
 
-                // const SignInAnonymousButton(),
-                const SignInWithMagicLinkButtons(),
+                // continue with email and password
+                isLocalAuthEnabled
+                    ? const SignInAnonymousButtonV3()
+                    : const ContinueWithEmailAndPassword(),
+
+                VSpace(theme.spacing.xxl),
 
                 // third-party sign in.
-                const VSpace(20),
-
                 if (isAuthEnabled) ...[
                   const _OrDivider(),
-                  const VSpace(10),
+                  VSpace(theme.spacing.xxl),
                   const ThirdPartySignInButtons(),
+                  VSpace(theme.spacing.xxl),
                 ],
-                const VSpace(20),
 
-                // anonymous sign in
-                const SignInAnonymousButtonV2(),
-                const VSpace(10),
+                // sign in agreement
+                const SignInAgreement(),
 
-                SwitchSignInSignUpButton(
-                  onTap: () {
-                    final type = state.loginType == LoginType.signIn
-                        ? LoginType.signUp
-                        : LoginType.signIn;
-                    context
-                        .read<SignInBloc>()
-                        .add(SignInEvent.switchLoginType(type));
-                  },
+                const Spacer(),
+
+                // anonymous sign in and settings
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DesktopSignInSettingsButton(),
+                    HSpace(20),
+                    SignInAnonymousButtonV2(),
+                  ],
                 ),
-
-                // loading status
-                const VSpace(indicatorMinHeight),
-                state.isSubmitting
-                    ? const LinearProgressIndicator(
-                        minHeight: indicatorMinHeight,
-                      )
-                    : const VSpace(indicatorMinHeight),
-                const VSpace(20),
+                VSpace(bottomPadding),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  PreferredSize _buildAppBar() {
+    return PreferredSize(
+      preferredSize: Size.fromHeight(UniversalPlatform.isWindows ? 40 : 60),
+      child: UniversalPlatform.isWindows
+          ? const WindowTitleBar()
+          : const MoveWindowDetector(),
+    );
+  }
+}
+
+class DesktopSignInSettingsButton extends StatelessWidget {
+  const DesktopSignInSettingsButton({
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
+    return AFGhostIconTextButton(
+      text: LocaleKeys.signIn_settings.tr(),
+      textColor: (context, isHovering, disabled) {
+        return theme.textColorScheme.secondary;
+      },
+      size: AFButtonSize.s,
+      padding: EdgeInsets.symmetric(
+        horizontal: theme.spacing.m,
+        vertical: theme.spacing.xs,
+      ),
+      onTap: () => showSimpleSettingsDialog(context),
+      iconBuilder: (context, isHovering, disabled) {
+        return FlowySvg(
+          FlowySvgs.settings_s,
+          size: Size.square(20),
+          color: theme.textColorScheme.secondary,
         );
       },
     );
@@ -87,14 +124,30 @@ class _OrDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
     return Row(
       children: [
-        const Flexible(child: Divider(thickness: 1)),
+        Flexible(
+          child: Divider(
+            thickness: 1,
+            color: theme.borderColorScheme.greyTertiary,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: FlowyText.regular(LocaleKeys.signIn_or.tr()),
+          child: Text(
+            LocaleKeys.signIn_or.tr(),
+            style: theme.textStyle.body.standard(
+              color: theme.textColorScheme.secondary,
+            ),
+          ),
         ),
-        const Flexible(child: Divider(thickness: 1)),
+        Flexible(
+          child: Divider(
+            thickness: 1,
+            color: theme.borderColorScheme.greyTertiary,
+          ),
+        ),
       ],
     );
   }

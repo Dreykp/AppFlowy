@@ -5,7 +5,7 @@
   "welcomeTo": "Bienvenido a",
   "githubStarText": "Favorito en GitHub",
   "subscribeNewsletterText": "Suscribir al boletín",
-  "letsGoButtonText": "Vamos",
+  "letsGoButtonText": "Inicio rápido",
   "title": "Título",
   "youCanAlso": "Tú también puedes",
   "and": "y",
@@ -19,30 +19,31 @@
     "openMenuTooltip": "Haga clic para abrir el menú"
   },
   "signUp": {
-    "buttonText": "Registrar",
-    "title": "Registrar en @:appName",
+    "buttonText": "Registro",
+    "title": "Registro en @:appName",
     "getStartedText": "Empezar",
     "emptyPasswordError": "La contraseña no puede estar en blanco",
-    "repeatPasswordEmptyError": "La contraseña no puede estar en blanco",
+    "repeatPasswordEmptyError": "La contraseña repetida no puede estar vacía",
     "unmatchedPasswordError": "Las contraseñas no coinciden",
-    "alreadyHaveAnAccount": "¿Posee credenciales?",
-    "emailHint": "Correo",
+    "alreadyHaveAnAccount": "¿Ya posee una cuenta?",
+    "emailHint": "Correo electrónico",
     "passwordHint": "Contraseña",
     "repeatPasswordHint": "Repetir contraseña",
-    "signUpWith": "Registrarte con:"
+    "signUpWith": "Registro con:"
   },
   "signIn": {
     "loginTitle": "Ingresa a @:appName",
     "loginButtonText": "Ingresar",
     "loginStartWithAnonymous": "Comience una sesión anónima",
     "continueAnonymousUser": "Continuar con una sesión anónima",
+    "anonymous": "Anónimo",
     "buttonText": "Ingresar",
     "signingInText": "Iniciando sesión...",
     "forgotPassword": "¿Olvidó su contraseña?",
     "emailHint": "Correo",
     "passwordHint": "Contraseña",
     "dontHaveAnAccount": "¿No posee credenciales?",
-    "createAccount": "Crear cuenta",
+    "createAccount": "Crear una cuenta",
     "repeatPasswordEmptyError": "La contraseña no puede estar en blanco",
     "unmatchedPasswordError": "Las contraseñas no coinciden",
     "syncPromptMessage": "La sincronización de los datos puede tardar un poco. Por favor no cierres esta página",
@@ -50,6 +51,8 @@
     "signInWithGoogle": "Iniciar sesión con Google",
     "signInWithGithub": "Iniciar sesión con Github",
     "signInWithDiscord": "Iniciar sesión con Discord",
+    "signInWithApple": "Continuar con Apple",
+    "continueAnotherWay": "Continuar por otro camino",
     "signUpWithGoogle": "Registrarse con Google",
     "signUpWithGithub": "Registrarse con Github",
     "signUpWithDiscord": "Registrarse con Discord",
@@ -64,17 +67,16 @@
     "alreadyHaveAnAccount": "¿Ya tienes cuenta?",
     "logIn": "Iniciar sesión",
     "generalError": "Algo ha salido mal. Por favor, inténtalo más tarde",
-    "limitRateError": "Por razones de seguridad, solo puedes solicitar un enlace mágico cada 60 segundos",
-    "LogInWithGoogle": "Iniciar sesión con Google",
-    "LogInWithGithub": "Iniciar sesión con Github",
-    "LogInWithDiscord": "Iniciar sesión con Discord",
-    "loginAsGuestButtonText": "Empezar",
-    "logInWithMagicLink": "Iniciar sesión con Enlace Mágico"
+    "limitRateError": "Por razones de seguridad, solo puedes solicitar un enlace mágico cada 60 segundos"
   },
   "workspace": {
     "chooseWorkspace": "Elige tu espacio de trabajo",
+    "defaultName": "Mi espacio de trabajo",
     "create": "Crear espacio de trabajo",
+    "new": "Nuevo espacio de trabajo",
+    "learnMore": "Más información",
     "reset": "Restablecer espacio de trabajo",
+    "renameWorkspace": "Cambiar el nombre del espacio de trabajo",
     "resetWorkspacePrompt": "Al restablecer el espacio de trabajo se eliminarán todas las páginas y datos que contiene. ¿Está seguro de que desea restablecer el espacio de trabajo? Alternativamente, puede comunicarse con el equipo de soporte para restaurar el espacio de trabajo.",
     "hint": "Espacio de trabajo",
     "notFoundError": "Espacio de trabajo no encontrado",
@@ -110,7 +112,9 @@
     "html": "HTML",
     "clipboard": "Copiar al portapapeles",
     "csv": "CSV",
-    "copyLink": "Copiar enlace"
+    "copyLink": "Copiar enlace",
+    "publish": "Publicar",
+    "publishTab": "Publicar"
   },
   "moreAction": {
     "small": "pequeño",
@@ -118,15 +122,17 @@
     "large": "grande",
     "fontSize": "Tamaño de fuente",
     "import": "Importar",
-    "moreOptions": "Mas opciones",
+    "moreOptions": "Más opciones",
     "wordCount": "El recuento de palabras: {}",
     "charCount": "Número de caracteres : {}",
     "createdAt": "Creado: {}",
     "deleteView": "Borrar",
-    "duplicateView": "Duplicar"
+    "duplicateView": "Duplicar",
+    "createdAtLabel": "Creado: ",
+    "syncedAtLabel": "Sincronizado: "
   },
   "importPanel": {
-    "textAndMarkdown": "Texto y descuento",
+    "textAndMarkdown": "Texto y Markdown",
     "documentFromV010": "Documento de v0.1.0",
     "databaseFromV010": "Base de datos desde v0.1.0",
     "csv": "CSV",
@@ -141,7 +147,8 @@
     "openNewTab": "Abrir en una pestaña nueva",
     "moveTo": "Mover a",
     "addToFavorites": "Añadira los favoritos",
-    "copyLink": "Copiar Enlace"
+    "copyLink": "Copiar Enlace",
+    "move": "Mover"
   },
   "blankPageTitle": "Página en blanco",
   "newPageText": "Nueva página",
@@ -149,9 +156,36 @@
   "newGridText": "Nueva patrón",
   "newCalendarText": "Nuevo calendario",
   "newBoardText": "Nuevo tablero",
+  "chat": {
+    "newChat": "Chat de IA",
+    "relatedQuestion": "Relacionado",
+    "serverUnavailable": "Servicio temporalmente no disponible. Por favor, inténtelo de nuevo más tarde.",
+    "aiServerUnavailable": "🌈 ¡Uh-oh! 🌈. Un unicornio se comió nuestra respuesta. ¡Por favor, intenta de nuevo!",
+    "retry": "Rever",
+    "clickToRetry": "Haga clic para volver a intentarlo",
+    "regenerateAnswer": "Regenerar",
+    "question1": "Cómo utilizar Kanban para gestionar tareas",
+    "question2": "Explica el método GTD",
+    "question3": "¿Por qué usar Rust?",
+    "aiMistakePrompt": "La IA puede cometer errores. Consulta información importante.",
+    "referenceSource": {
+      "one": "Se encontró {count} fuente",
+      "other": "Se encontraron {count} fuentes"
+    },
+    "regenerate": "Intentar otra vez",
+    "addToNewPage": "Crear nueva página",
+    "changeFormat": {
+      "textOnly": "Texto",
+      "text": "Párrafo"
+    },
+    "selectBanner": {
+      "saveButton": "Añadir …"
+    }
+  },
   "trash": {
     "text": "Papelera",
     "restoreAll": "Recuperar todo",
+    "restore": "Restaurar",
     "deleteAll": "Eliminar todo",
     "pageHeader": {
       "fileName": "Nombre de archivo",
@@ -184,20 +218,21 @@
   "questionBubble": {
     "shortcuts": "Atajos",
     "whatsNew": "¿Qué hay de nuevo?",
-    "help": "Ayuda y Soporte",
     "markdown": "Reducción",
     "debug": {
       "name": "Información de depuración",
       "success": "¡Información copiada!",
       "fail": "No fue posible copiar la información"
     },
-    "feedback": "Comentario"
+    "feedback": "Comentario",
+    "help": "Ayuda y Soporte"
   },
   "menuAppHeader": {
     "moreButtonToolTip": "Eliminar, renombrar y más...",
     "addPageTooltip": "Inserta una página",
     "defaultNewPageName": "Sin Título",
-    "renameDialog": "Renombrar"
+    "renameDialog": "Renombrar",
+    "pageNameSuffix": "Copiar"
   },
   "noPagesInside": "No hay páginas dentro",
   "toolbar": {
@@ -227,7 +262,8 @@
     "dragRow": "Pulsación larga para reordenar la fila",
     "viewDataBase": "Ver base de datos",
     "referencePage": "Se hace referencia a este {nombre}",
-    "addBlockBelow": "Añadir un bloque a continuación"
+    "addBlockBelow": "Añadir un bloque a continuación",
+    "aiGenerate": "Generar"
   },
   "sideBar": {
     "closeSidebar": "Cerrar panel lateral",
@@ -243,7 +279,19 @@
     "addAPage": "Añadir una página",
     "addAPageToPrivate": "Agregar una página al espacio privado",
     "addAPageToWorkspace": "Agregar una página al espacio de trabajo",
-    "recent": "Reciente"
+    "recent": "Reciente",
+    "today": "Hoy",
+    "thisWeek": "Esta semana",
+    "others": "Otros favoritos",
+    "justNow": "En este momento",
+    "lastViewed": "Visto por última vez",
+    "emptyRecent": "Sin documentos recientes",
+    "favoriteSpace": "Favoritos",
+    "RecentSpace": "Reciente",
+    "Spaces": "Espacios",
+    "aiImageResponseLimit": "Se ha quedado sin respuestas de imágenes de IA.\n\nVaya a Configuración -> Plan -> Haga clic en AI Max para obtener más respuestas de imágenes de IA",
+    "purchaseStorageSpace": "Comprar espacio de almacenamiento",
+    "purchaseAIResponse": "Compra "
   },
   "notifications": {
     "export": {
@@ -277,16 +325,19 @@
     "upload": "Subir",
     "edit": "Editar",
     "delete": "Borrar",
+    "copy": "Copiar",
     "duplicate": "Duplicar",
     "putback": "Volver",
     "update": "Actualizar",
     "share": "Compartir",
     "removeFromFavorites": "Quitar de favoritos",
+    "removeFromRecent": "Eliminar de los recientes",
     "addToFavorites": "Añadir a favoritos",
     "rename": "Renombrar",
     "helpCenter": "Centro de ayuda",
     "add": "Añadir",
     "yes": "Si",
+    "no": "No",
     "clear": "Limpiar",
     "remove": "Eliminar",
     "dontRemove": "no quitar",
@@ -298,7 +349,15 @@
     "back": "Atrás",
     "signInGoogle": "Inicia sesión con Google",
     "signInGithub": "Iniciar sesión con Github",
-    "signInDiscord": "Iniciar sesión con discordia"
+    "signInDiscord": "Iniciar sesión con discordia",
+    "more": "Más",
+    "create": "Crear",
+    "close": "Cerca",
+    "next": "Próximo",
+    "previous": "Anterior",
+    "submit": "Entregar",
+    "download": "Descargar",
+    "backToHome": "Volver a Inicio"
   },
   "label": {
     "welcome": "¡Bienvenido!",
@@ -322,10 +381,12 @@
   },
   "settings": {
     "title": "Ajustes",
+    "popupMenuItem": {
+      "settings": "Ajustes"
+    },
     "accountPage": {
       "menuLabel": "Mi cuenta",
       "title": "Mi cuenta",
-      "description": "Personaliza tu perfil, administra la seguridad de la cuenta y las claves API de IA, o inicia sesión en tu cuenta.",
       "general": {
         "title": "Nombre de cuenta e imagen de perfil",
         "changeProfilePicture": "Cambiar"
@@ -336,20 +397,12 @@
           "change": "Cambiar email"
         }
       },
-      "keys": {
-        "title": "Claves API de IA",
-        "openAILabel": "Clave API de OpenAI",
-        "openAITooltip": "La clave API de OpenAI para usar en los modelos de IA",
-        "openAIHint": "Ingresa tu clave API de OpenAI",
-        "stabilityAILabel": "Clave API de Stability",
-        "stabilityAITooltip": "La clave API de Stability que se utilizará en los modelos de IA",
-        "stabilityAIHint": "Ingresa tu clave API de Stability"
-      },
       "login": {
         "title": "Inicio de sesión en la cuenta",
         "loginLabel": "Inicio de sesión",
         "logoutLabel": "Cerrar sesión"
-      }
+      },
+      "description": "Personaliza tu perfil, administra la seguridad de la cuenta y las claves API de IA, o inicia sesión en tu cuenta."
     },
     "menu": {
       "appearance": "Apariencia",
@@ -370,11 +423,6 @@
       "cloudServerType": "servidor en la nube",
       "cloudServerTypeTip": "Tenga en cuenta que es posible que se cierre la sesión de su cuenta actual después de cambiar el servidor en la nube.",
       "cloudLocal": "Local",
-      "cloudSupabase": "Supabase",
-      "cloudSupabaseUrl": "URL de la base de datos",
-      "cloudSupabaseUrlCanNotBeEmpty": "La URL de supabase no puede estar vacía.",
-      "cloudSupabaseAnonKey": "Supabase clave anon",
-      "cloudSupabaseAnonKeyCanNotBeEmpty": "La clave anon no puede estar vacía si la URL de supabase no está vacía",
       "cloudAppFlowy": "Nube @:appName",
       "cloudAppFlowySelfHost": "@:appName Cloud autohospedado",
       "appFlowyCloudUrlCanNotBeEmpty": "La URL de la nube no puede estar vacía",
@@ -403,8 +451,7 @@
       "importAppFlowyDataDescription": "Copia los datos de una carpeta de datos externa de @:appName e impórtalos a la carpeta de datos actual de @:appName",
       "importSuccess": "Importó exitosamente la carpeta de datos de @:appName",
       "importFailed": "Error al importar la carpeta de datos de @:appName",
-      "importGuide": "Para obtener más detalles, consulte el documento de referencia.",
-      "supabaseSetting": "Ajuste de base superior"
+      "importGuide": "Para obtener más detalles, consulte el documento de referencia."
     },
     "notifications": {
       "enableNotifications": {
@@ -425,7 +472,7 @@
         "dark": "Modo Oscuro",
         "system": "Adapt to System"
       },
-      "fontScaleFactor": "Escala de la fuente",
+      "fontScaleFactor": "Factor de escala de fuente",
       "documentSettings": {
         "cursorColor": "Color del cursor del documento",
         "selectionColor": "Color de selección de documento",
@@ -483,7 +530,7 @@
       "enableRTLToolbarItems": "Habilitar elementos de la barra de herramientas RTL",
       "members": {
         "title": "Configuración de miembros",
-        "inviteMembers": "Invitar miembros",
+        "inviteMembers": "Invitar a los miembros",
         "sendInvite": "Enviar invitación",
         "copyInviteLink": "Copiar enlace de invitación",
         "label": "Miembros",
@@ -494,8 +541,7 @@
         "guest": "Invitado",
         "member": "Miembro",
         "memberHintText": "Un miembro puede leer, comentar y editar páginas. Invitar a miembros e invitados.",
-        "guestHintText": "Un Invitado puede leer, reaccionar, comentar y editar ciertas páginas con permiso.",
-        "emailInvalidError": "Email no válido, compruébalo y vuelve a intentarlo.",
+        "emailInvalidError": "Correo electrónico no válido, compruébalo y vuelve a intentarlo.",
         "emailSent": "Email enviado, por favor revisa la bandeja de entrada",
         "members": "miembros",
         "membersCount": {
@@ -557,9 +603,26 @@
       "email": "Correo electrónico",
       "tooltipSelectIcon": "Seleccionar icono",
       "selectAnIcon": "Seleccione un icono",
-      "pleaseInputYourOpenAIKey": "por favor ingrese su clave OpenAI",
-      "pleaseInputYourStabilityAIKey": "por favor ingrese su clave de estabilidad AI",
-      "clickToLogout": "Haga clic para cerrar la sesión del usuario actual."
+      "pleaseInputYourOpenAIKey": "por favor ingrese su clave AI",
+      "clickToLogout": "Haga clic para cerrar la sesión del usuario actual.",
+      "pleaseInputYourStabilityAIKey": "por favor ingrese su clave de estabilidad AI"
+    },
+    "mobile": {
+      "personalInfo": "Informacion personal",
+      "username": "Nombre de usuario",
+      "usernameEmptyError": "El nombre de usuario no puede estar vacío",
+      "about": "Acerca de",
+      "pushNotifications": "Notificaciones ",
+      "support": "Soporte",
+      "joinDiscord": "Únete a nosotros en Discord",
+      "privacyPolicy": "política de privacidad",
+      "userAgreement": "Acuerdo del Usuario",
+      "termsAndConditions": "Términos y condiciones",
+      "userprofileError": "No se pudo cargar el perfil de usuario",
+      "userprofileErrorDescription": "Intente cerrar sesión y volver a iniciarla para comprobar si el problema persiste.",
+      "selectLayout": "Seleccionar diseño",
+      "selectStartingDay": "Seleccione el día de inicio",
+      "version": "Versión"
     },
     "shortcuts": {
       "shortcutsLabel": "Atajos",
@@ -577,28 +640,10 @@
         "codeBlockOutdentLines": "Eliminar dos espacios al inicio de la línea en el bloque de código",
         "codeBlockAddTwoSpaces": "Insertar dos espacios en la posición del cursor en el bloque de código",
         "codeBlockSelectAll": "Seleccionar todo el contenido dentro de un bloque de código",
-        "codeBlockPasteText": "Pegar texto en bloque de código",
         "textAlignLeft": "Alinear texto a la izquierda",
         "textAlignCenter": "Alinear el texto al centro",
         "textAlignRight": "Alinear el texto a la derecha"
       }
-    },
-    "mobile": {
-      "personalInfo": "Informacion personal",
-      "username": "Nombre de usuario",
-      "usernameEmptyError": "El nombre de usuario no puede estar vacío",
-      "about": "Acerca de",
-      "pushNotifications": "Notificaciones ",
-      "support": "Soporte",
-      "joinDiscord": "Únete a nosotros en Discord",
-      "privacyPolicy": "política de privacidad",
-      "userAgreement": "Acuerdo del Usuario",
-      "termsAndConditions": "Términos y condiciones",
-      "userprofileError": "No se pudo cargar el perfil de usuario",
-      "userprofileErrorDescription": "Intenta cerrar sesión y volver a entrar para comprobar si el problema persiste.",
-      "selectLayout": "Seleccionar diseño",
-      "selectStartingDay": "Seleccione el día de inicio",
-      "version": "Versión"
     }
   },
   "grid": {
@@ -678,8 +723,8 @@
       "choicechipPrefix": {
         "before": "Antes",
         "after": "Después",
-        "onOrBefore": "En o antes de",
-        "onOrAfter": "En o después de",
+        "onOrBefore": "En o antes",
+        "onOrAfter": "Sobre o después",
         "isEmpty": "Está vacio",
         "isNotEmpty": "No está vacío"
       }
@@ -821,8 +866,7 @@
     "url": {
       "launch": "Abrir en el navegador",
       "copy": "Copiar URL",
-      "textFieldHint": "Introduce una URL",
-      "copiedNotification": "¡Copiado al portapapeles!"
+      "textFieldHint": "Introduce una URL"
     },
     "relation": {
       "relatedDatabasePlaceLabel": "Base de datos relacionada",
@@ -883,23 +927,22 @@
       "referencedGrid": "Cuadrícula referenciada",
       "referencedCalendar": "Calendario referenciado",
       "referencedDocument": "Documento referenciado",
-      "autoGeneratorMenuItemName": "Escritor de OpenAI",
-      "autoGeneratorTitleName": "OpenAI: Pídele a AI que escriba cualquier cosa...",
+      "autoGeneratorMenuItemName": "Escritor de AI",
+      "autoGeneratorTitleName": "AI: Pídele a AI que escriba cualquier cosa...",
       "autoGeneratorLearnMore": "Aprende más",
       "autoGeneratorGenerate": "Generar",
-      "autoGeneratorHintText": "Pregúntale a OpenAI...",
-      "autoGeneratorCantGetOpenAIKey": "No puedo obtener la clave de OpenAI",
+      "autoGeneratorHintText": "Pregúntale a AI...",
+      "autoGeneratorCantGetOpenAIKey": "No puedo obtener la clave de AI",
       "autoGeneratorRewrite": "Volver a escribir",
       "smartEdit": "Asistentes de IA",
-      "openAI": "IA abierta",
       "smartEditFixSpelling": "Corregir ortografía",
       "warning": "⚠️ Las respuestas de la IA pueden ser inexactas o engañosas.",
       "smartEditSummarize": "Resumir",
       "smartEditImproveWriting": "Mejorar la escritura",
       "smartEditMakeLonger": "hacer más largo",
-      "smartEditCouldNotFetchResult": "No se pudo obtener el resultado de OpenAI",
-      "smartEditCouldNotFetchKey": "No se pudo obtener la clave de OpenAI",
-      "smartEditDisabled": "Conectar OpenAI en Configuración",
+      "smartEditCouldNotFetchResult": "No se pudo obtener el resultado de AI",
+      "smartEditCouldNotFetchKey": "No se pudo obtener la clave de AI",
+      "smartEditDisabled": "Conectar AI en Configuración",
       "discardResponse": "¿Quieres descartar las respuestas de IA?",
       "createInlineMathEquation": "Crear ecuación",
       "fonts": "Tipo de letra",
@@ -958,8 +1001,8 @@
         "depth": "Profundidad"
       },
       "image": {
-        "copiedToPasteBoard": "El enlace de la imagen se ha copiado en el portapapeles.",
         "addAnImage": "Añadir una imagen",
+        "copiedToPasteBoard": "El enlace de la imagen se ha copiado en el portapapeles.",
         "imageUploadFailed": "Error al subir la imagen",
         "errorCode": "Código de error"
       },
@@ -993,7 +1036,8 @@
         "newDatabase": "Nueva base de datos",
         "linkToDatabase": "Enlace a la base de datos"
       },
-      "date": "Fecha"
+      "date": "Fecha",
+      "openAI": "IA abierta"
     },
     "outlineBlock": {
       "placeholder": "Tabla de contenidos"
@@ -1015,8 +1059,8 @@
         "placeholder": "Introduce la URL de la imagen"
       },
       "ai": {
-        "label": "Generar imagen desde OpenAI",
-        "placeholder": "Ingrese el prompt para que OpenAI genere una imagen"
+        "label": "Generar imagen desde AI",
+        "placeholder": "Ingrese el prompt para que AI genere una imagen"
       },
       "stability_ai": {
         "label": "Generar imagen desde Stability AI",
@@ -1038,15 +1082,15 @@
         "label": "Desempaquetar"
       },
       "searchForAnImage": "Buscar una imagen",
-      "pleaseInputYourOpenAIKey": "ingresa tu clave OpenAI en la página de Configuración",
-      "pleaseInputYourStabilityAIKey": "ingresa tu clave de Stability AI en la página de configuración",
+      "pleaseInputYourOpenAIKey": "ingresa tu clave AI en la página de Configuración",
       "saveImageToGallery": "Guardar imagen",
       "failedToAddImageToGallery": "No se pudo agregar la imagen a la galería",
       "successToAddImageToGallery": "Imagen agregada a la galería con éxito",
       "unableToLoadImage": "No se puede cargar la imagen",
       "maximumImageSize": "El tamaño máximo de imagen es de 10 MB",
       "uploadImageErrorImageSizeTooBig": "El tamaño de la imagen debe ser inferior a 10 MB.",
-      "imageIsUploading": "La imagen se está subiendo"
+      "imageIsUploading": "La imagen se está subiendo",
+      "pleaseInputYourStabilityAIKey": "ingresa tu clave de Stability AI en la página de configuración"
     },
     "codeBlock": {
       "language": {

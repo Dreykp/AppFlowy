@@ -12,21 +12,20 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
   UserProfileBloc() : super(const _Initial()) {
     on<UserProfileEvent>((event, emit) async {
       await event.when(
-        started: () async => _initalize(emit),
+        started: () async => _initialize(emit),
       );
     });
   }
 
-  Future<void> _initalize(Emitter<UserProfileState> emit) async {
+  Future<void> _initialize(Emitter<UserProfileState> emit) async {
     emit(const UserProfileState.loading());
-
-    final workspaceOrFailure =
+    final latestOrFailure =
         await FolderEventGetCurrentWorkspaceSetting().send();
 
     final userOrFailure = await getIt<AuthService>().getUser();
 
-    final workspaceSetting = workspaceOrFailure.fold(
-      (workspaceSettingPB) => workspaceSettingPB,
+    final latest = latestOrFailure.fold(
+      (latestPB) => latestPB,
       (error) => null,
     );
 
@@ -35,13 +34,13 @@ class UserProfileBloc extends Bloc<UserProfileEvent, UserProfileState> {
       (error) => null,
     );
 
-    if (workspaceSetting == null || userProfile == null) {
+    if (latest == null || userProfile == null) {
       return emit(const UserProfileState.workspaceFailure());
     }
 
     emit(
       UserProfileState.success(
-        workspaceSettings: workspaceSetting,
+        workspaceSettings: latest,
         userProfile: userProfile,
       ),
     );
@@ -59,7 +58,7 @@ class UserProfileState with _$UserProfileState {
   const factory UserProfileState.loading() = _Loading;
   const factory UserProfileState.workspaceFailure() = _WorkspaceFailure;
   const factory UserProfileState.success({
-    required WorkspaceSettingPB workspaceSettings,
+    required WorkspaceLatestPB workspaceSettings,
     required UserProfilePB userProfile,
   }) = _Success;
 }

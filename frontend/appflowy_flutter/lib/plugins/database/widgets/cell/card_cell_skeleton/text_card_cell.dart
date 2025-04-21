@@ -1,14 +1,15 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/plugins/database/application/cell/bloc/text_cell_bloc.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller_builder.dart';
 import 'package:appflowy/plugins/database/application/database_controller.dart';
-import 'package:appflowy/plugins/database/application/cell/bloc/text_cell_bloc.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../editable_cell_builder.dart';
@@ -61,14 +62,8 @@ class _TextCellState extends State<TextCardCell> {
   @override
   void initState() {
     super.initState();
-
-    _textEditingController = TextEditingController(text: cellBloc.state.content)
-      ..addListener(() {
-        if (_textEditingController.value.composing.isCollapsed) {
-          cellBloc
-              .add(TextCellEvent.updateText(_textEditingController.value.text));
-        }
-      });
+    _textEditingController =
+        TextEditingController(text: cellBloc.state.content);
 
     if (widget.editableNotifier?.isCellEditing.value ?? false) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -80,13 +75,16 @@ class _TextCellState extends State<TextCardCell> {
     // If the focusNode lost its focus, the widget's editableNotifier will
     // set to false, which will cause the [EditableRowNotifier] to receive
     // end edit event.
-    focusNode.addListener(() {
-      if (!focusNode.hasFocus) {
-        widget.editableNotifier?.isCellEditing.value = false;
-        cellBloc.add(const TextCellEvent.enableEdit(false));
-      }
-    });
+    focusNode.addListener(_onFocusChanged);
     _bindEditableNotifier();
+  }
+
+  void _onFocusChanged() {
+    if (!focusNode.hasFocus) {
+      widget.editableNotifier?.isCellEditing.value = false;
+      cellBloc.add(const TextCellEvent.enableEdit(false));
+      cellBloc.add(TextCellEvent.updateText(_textEditingController.text));
+    }
   }
 
   void _bindEditableNotifier() {
@@ -97,9 +95,8 @@ class _TextCellState extends State<TextCardCell> {
 
       final isEditing = widget.editableNotifier?.isCellEditing.value ?? false;
       if (isEditing) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          focusNode.requestFocus();
-        });
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => focusNode.requestFocus());
       }
       cellBloc.add(TextCellEvent.enableEdit(isEditing));
     });
@@ -121,9 +118,7 @@ class _TextCellState extends State<TextCardCell> {
       child: BlocListener<TextCellBloc, TextCellState>(
         listenWhen: (previous, current) => previous.content != current.content,
         listener: (context, state) {
-          if (!state.enableEdit) {
-            _textEditingController.text = state.content;
-          }
+          _textEditingController.text = state.content ?? "";
         },
         child: isTitle ? _buildTitle() : _buildText(),
       ),
@@ -141,18 +136,22 @@ class _TextCellState extends State<TextCardCell> {
   }
 
   Widget? _buildIcon(TextCellState state) {
-    if (state.emoji.isNotEmpty) {
-      return Text(
-        state.emoji,
-        style: widget.style.titleTextStyle,
+    if (state.emoji?.value.isNotEmpty ?? false) {
+      return FlowyText.emoji(
+        optimizeEmojiAlign: true,
+        state.emoji?.value ?? '',
       );
     }
+
     if (widget.showNotes) {
       return FlowyTooltip(
         message: LocaleKeys.board_notesTooltip.tr(),
-        child: FlowySvg(
-          FlowySvgs.notes_s,
-          color: Theme.of(context).hintColor,
+        child: Padding(
+          padding: const EdgeInsets.all(1.0),
+          child: FlowySvg(
+            FlowySvgs.notes_s,
+            color: Theme.of(context).hintColor,
+          ),
         ),
       );
     }
@@ -162,7 +161,7 @@ class _TextCellState extends State<TextCardCell> {
   Widget _buildText() {
     return BlocBuilder<TextCellBloc, TextCellState>(
       builder: (context, state) {
-        final content = state.content;
+        final content = state.content ?? "";
 
         return content.isEmpty
             ? const SizedBox.shrink()
@@ -184,12 +183,23 @@ class _TextCellState extends State<TextCardCell> {
     return BlocBuilder<TextCellBloc, TextCellState>(
       builder: (context, state) {
         final icon = _buildIcon(state);
+        if (icon == null) {
+          return textField;
+        }
+        final resolved =
+            widget.style.padding.resolve(Directionality.of(context));
+        final padding = EdgeInsetsDirectional.only(
+          start: resolved.left,
+          top: resolved.top,
+          bottom: resolved.bottom,
+        );
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (icon != null) ...[
-              icon,
-              const HSpace(4.0),
-            ],
+            Container(
+              padding: padding,
+              child: icon,
+            ),
             Expanded(child: textField),
           ],
         );
@@ -207,20 +217,22 @@ class _TextCellState extends State<TextCardCell> {
             bindings: {
               const SingleActivator(LogicalKeyboardKey.escape): () =>
                   focusNode.unfocus(),
+              const SimpleActivator(LogicalKeyboardKey.enter): () =>
+                  focusNode.unfocus(),
             },
             child: TextField(
               controller: _textEditingController,
               focusNode: focusNode,
               onEditingComplete: () => focusNode.unfocus(),
-              maxLines: isEditing ? null : 2,
+              onSubmitted: (_) => focusNode.unfocus(),
+              maxLines: null,
               minLines: 1,
               textInputAction: TextInputAction.done,
               readOnly: !isEditing,
               enableInteractiveSelection: isEditing,
               style: widget.style.titleTextStyle,
               decoration: InputDecoration(
-                contentPadding: widget.style.padding
-                    .add(const EdgeInsets.symmetric(vertical: 4.0)),
+                contentPadding: widget.style.padding,
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 isDense: true,
@@ -237,4 +249,28 @@ class _TextCellState extends State<TextCardCell> {
       },
     );
   }
+}
+
+class SimpleActivator with Diagnosticable implements ShortcutActivator {
+  const SimpleActivator(
+    this.trigger, {
+    this.includeRepeats = true,
+  });
+
+  final LogicalKeyboardKey trigger;
+  final bool includeRepeats;
+
+  @override
+  bool accepts(KeyEvent event, HardwareKeyboard state) {
+    return (event is KeyDownEvent ||
+            (includeRepeats && event is KeyRepeatEvent)) &&
+        trigger == event.logicalKey;
+  }
+
+  @override
+  String debugDescribeKeys() =>
+      kDebugMode ? trigger.debugName ?? trigger.toStringShort() : '';
+
+  @override
+  Iterable<LogicalKeyboardKey>? get triggers => <LogicalKeyboardKey>[trigger];
 }

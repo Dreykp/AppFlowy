@@ -1,12 +1,12 @@
+import 'package:flutter/material.dart';
+
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/database/grid/presentation/layout/sizes.dart';
 import 'package:appflowy/workspace/presentation/widgets/toggle/toggle.dart';
-import 'package:appflowy/workspace/presentation/widgets/toggle/toggle_style.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/style_widget/text.dart';
 import 'package:flowy_infra_ui/widget/spacing.dart';
-import 'package:flutter/material.dart';
 
 class EndTimeButton extends StatelessWidget {
   const EndTimeButton({
@@ -33,12 +33,11 @@ class EndTimeButton extends StatelessWidget {
                 color: Theme.of(context).iconTheme.color,
               ),
               const HSpace(6),
-              FlowyText.medium(LocaleKeys.datePicker_isRange.tr()),
+              FlowyText(LocaleKeys.datePicker_isRange.tr()),
               const Spacer(),
               Toggle(
                 value: isRange,
                 onChanged: onChanged,
-                style: ToggleStyle.big,
                 padding: EdgeInsets.zero,
               ),
             ],

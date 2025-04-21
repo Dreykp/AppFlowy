@@ -1,21 +1,28 @@
 import 'dart:convert';
 
 import 'package:appflowy/generated/flowy_svgs.g.dart';
+import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
+import 'package:appflowy/plugins/ai_chat/chat.dart';
 import 'package:appflowy/plugins/database/board/presentation/board_page.dart';
 import 'package:appflowy/plugins/database/calendar/presentation/calendar_page.dart';
 import 'package:appflowy/plugins/database/grid/presentation/grid_page.dart';
 import 'package:appflowy/plugins/database/grid/presentation/mobile_grid_page.dart';
 import 'package:appflowy/plugins/database/tab_bar/tab_bar_view.dart';
 import 'package:appflowy/plugins/document/document.dart';
+import 'package:appflowy/shared/icon_emoji_picker/icon_picker.dart';
 import 'package:appflowy/startup/plugin/plugin.dart';
-import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
+import 'package:appflowy/workspace/application/sidebar/space/space_bloc.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:collection/collection.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 class PluginArgumentKeys {
   static String selection = "selection";
   static String rowId = "row_id";
+  static String blockId = "block_id";
 }
 
 class ViewExtKeys {
@@ -32,17 +39,54 @@ class ViewExtKeys {
   static String coverKey = 'cover';
   static String coverTypeKey = 'type';
   static String coverValueKey = 'value';
+
+  // is pinned
+  static String isPinnedKey = 'is_pinned';
+
+  // space
+  static String isSpaceKey = 'is_space';
+  static String spaceCreatorKey = 'space_creator';
+  static String spaceCreatedAtKey = 'space_created_at';
+  static String spaceIconKey = 'space_icon';
+  static String spaceIconColorKey = 'space_icon_color';
+  static String spacePermissionKey = 'space_permission';
+}
+
+extension MinimalViewExtension on FolderViewMinimalPB {
+  Widget defaultIcon({Size? size}) => FlowySvg(
+        switch (layout) {
+          ViewLayoutPB.Board => FlowySvgs.icon_board_s,
+          ViewLayoutPB.Calendar => FlowySvgs.icon_calendar_s,
+          ViewLayoutPB.Grid => FlowySvgs.icon_grid_s,
+          ViewLayoutPB.Document => FlowySvgs.icon_document_s,
+          ViewLayoutPB.Chat => FlowySvgs.chat_ai_page_s,
+          _ => FlowySvgs.icon_document_s,
+        },
+        size: size,
+      );
 }
 
 extension ViewExtension on ViewPB {
-  Widget defaultIcon() => FlowySvg(
+  String get nameOrDefault =>
+      name.isEmpty ? LocaleKeys.menuAppHeader_defaultNewPageName.tr() : name;
+
+  bool get isDocument => pluginType == PluginType.document;
+  bool get isDatabase => [
+        PluginType.grid,
+        PluginType.board,
+        PluginType.calendar,
+      ].contains(pluginType);
+
+  Widget defaultIcon({Size? size}) => FlowySvg(
         switch (layout) {
-          ViewLayoutPB.Board => FlowySvgs.board_s,
-          ViewLayoutPB.Calendar => FlowySvgs.date_s,
-          ViewLayoutPB.Grid => FlowySvgs.grid_s,
-          ViewLayoutPB.Document => FlowySvgs.document_s,
-          _ => FlowySvgs.document_s,
+          ViewLayoutPB.Board => FlowySvgs.icon_board_s,
+          ViewLayoutPB.Calendar => FlowySvgs.icon_calendar_s,
+          ViewLayoutPB.Grid => FlowySvgs.icon_grid_s,
+          ViewLayoutPB.Document => FlowySvgs.icon_document_s,
+          ViewLayoutPB.Chat => FlowySvgs.chat_ai_page_s,
+          _ => FlowySvgs.icon_document_s,
         },
+        size: size,
       );
 
   PluginType get pluginType => switch (layout) {
@@ -50,6 +94,7 @@ extension ViewExtension on ViewPB {
         ViewLayoutPB.Calendar => PluginType.calendar,
         ViewLayoutPB.Document => PluginType.document,
         ViewLayoutPB.Grid => PluginType.grid,
+        ViewLayoutPB.Chat => PluginType.chat,
         _ => throw UnimplementedError(),
       };
 
@@ -70,12 +115,16 @@ extension ViewExtension on ViewPB {
       case ViewLayoutPB.Document:
         final Selection? initialSelection =
             arguments[PluginArgumentKeys.selection];
+        final String? initialBlockId = arguments[PluginArgumentKeys.blockId];
 
         return DocumentPlugin(
           view: this,
           pluginType: pluginType,
           initialSelection: initialSelection,
+          initialBlockId: initialBlockId,
         );
+      case ViewLayoutPB.Chat:
+        return AIChatPagePlugin(view: this);
     }
     throw UnimplementedError;
   }
@@ -96,10 +145,117 @@ extension ViewExtension on ViewPB {
 
   FlowySvgData get iconData => layout.icon;
 
+  bool get isSpace {
+    try {
+      if (extra.isEmpty) {
+        return false;
+      }
+
+      final ext = jsonDecode(extra);
+      final isSpace = ext[ViewExtKeys.isSpaceKey] ?? false;
+      return isSpace;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  SpacePermission get spacePermission {
+    try {
+      final ext = jsonDecode(extra);
+      final permission = ext[ViewExtKeys.spacePermissionKey] ?? 1;
+      return SpacePermission.values[permission];
+    } catch (e) {
+      return SpacePermission.private;
+    }
+  }
+
+  FlowySvg? buildSpaceIconSvg(BuildContext context, {Size? size}) {
+    try {
+      if (extra.isEmpty) {
+        return null;
+      }
+
+      final ext = jsonDecode(extra);
+      final icon = ext[ViewExtKeys.spaceIconKey];
+      final color = ext[ViewExtKeys.spaceIconColorKey];
+      if (icon == null || color == null) {
+        return null;
+      }
+      // before version 0.6.7
+      if (icon.contains('space_icon')) {
+        return FlowySvg(
+          FlowySvgData('assets/flowy_icons/16x/$icon.svg'),
+          color: Theme.of(context).colorScheme.surface,
+        );
+      }
+
+      final values = icon.split('/');
+      if (values.length != 2) {
+        return null;
+      }
+      final groupName = values[0];
+      final iconName = values[1];
+      final svgString = kIconGroups
+          ?.firstWhereOrNull(
+            (group) => group.name == groupName,
+          )
+          ?.icons
+          .firstWhereOrNull(
+            (icon) => icon.name == iconName,
+          )
+          ?.content;
+      if (svgString == null) {
+        return null;
+      }
+      return FlowySvg.string(
+        svgString,
+        color: Theme.of(context).colorScheme.surface,
+        size: size,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String? get spaceIcon {
+    try {
+      final ext = jsonDecode(extra);
+      final icon = ext[ViewExtKeys.spaceIconKey];
+      return icon;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String? get spaceIconColor {
+    try {
+      final ext = jsonDecode(extra);
+      final color = ext[ViewExtKeys.spaceIconColorKey];
+      return color;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  bool get isPinned {
+    try {
+      final ext = jsonDecode(extra);
+      final isPinned = ext[ViewExtKeys.isPinnedKey] ?? false;
+      return isPinned;
+    } catch (e) {
+      return false;
+    }
+  }
+
   PageStyleCover? get cover {
     if (layout != ViewLayoutPB.Document) {
       return null;
     }
+
+    if (extra.isEmpty) {
+      return null;
+    }
+
     try {
       final ext = jsonDecode(extra);
       final cover = ext[ViewExtKeys.coverKey] ?? {};
@@ -144,15 +300,17 @@ extension ViewExtension on ViewPB {
 
 extension ViewLayoutExtension on ViewLayoutPB {
   FlowySvgData get icon => switch (this) {
-        ViewLayoutPB.Grid => FlowySvgs.grid_s,
-        ViewLayoutPB.Board => FlowySvgs.board_s,
-        ViewLayoutPB.Calendar => FlowySvgs.date_s,
-        ViewLayoutPB.Document => FlowySvgs.document_s,
-        _ => throw Exception('Unknown layout type'),
+        ViewLayoutPB.Board => FlowySvgs.icon_board_s,
+        ViewLayoutPB.Calendar => FlowySvgs.icon_calendar_s,
+        ViewLayoutPB.Grid => FlowySvgs.icon_grid_s,
+        ViewLayoutPB.Document => FlowySvgs.icon_document_s,
+        ViewLayoutPB.Chat => FlowySvgs.chat_ai_page_s,
+        _ => FlowySvgs.icon_document_s,
       };
 
   bool get isDocumentView => switch (this) {
         ViewLayoutPB.Document => true,
+        ViewLayoutPB.Chat ||
         ViewLayoutPB.Grid ||
         ViewLayoutPB.Board ||
         ViewLayoutPB.Calendar =>
@@ -165,8 +323,26 @@ extension ViewLayoutExtension on ViewLayoutPB {
         ViewLayoutPB.Board ||
         ViewLayoutPB.Calendar =>
           true,
-        ViewLayoutPB.Document => false,
+        ViewLayoutPB.Document || ViewLayoutPB.Chat => false,
         _ => throw Exception('Unknown layout type'),
+      };
+
+  String get defaultName => switch (this) {
+        ViewLayoutPB.Document => '',
+        _ => LocaleKeys.menuAppHeader_defaultNewPageName.tr(),
+      };
+
+  bool get shrinkWrappable => switch (this) {
+        ViewLayoutPB.Grid => true,
+        ViewLayoutPB.Board => true,
+        _ => false,
+      };
+
+  double get pluginHeight => switch (this) {
+        ViewLayoutPB.Document || ViewLayoutPB.Board || ViewLayoutPB.Chat => 450,
+        ViewLayoutPB.Calendar => 650,
+        ViewLayoutPB.Grid => double.infinity,
+        _ => throw UnimplementedError(),
       };
 }
 

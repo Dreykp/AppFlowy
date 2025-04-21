@@ -24,7 +24,7 @@ class AppFlowyUnitTest {
     _pathProviderInitialized();
 
     await FlowyRunner.run(
-      AppFlowyApplicationUniTest(),
+      AppFlowyApplicationUnitTest(),
       IntegrationMode.unitTest,
     );
 
@@ -58,9 +58,8 @@ class AppFlowyUnitTest {
   }
 
   WorkspacePB get currentWorkspace => workspace;
-
   Future<void> _loadWorkspace() async {
-    final result = await userService.getCurrentWorkspace();
+    final result = await UserBackendService.getCurrentWorkspace();
     result.fold(
       (value) => workspace = value,
       (error) {
@@ -70,7 +69,10 @@ class AppFlowyUnitTest {
   }
 
   Future<void> _initialServices() async {
-    workspaceService = WorkspaceService(workspaceId: currentWorkspace.id);
+    workspaceService = WorkspaceService(
+      workspaceId: currentWorkspace.id,
+      userId: userProfile.id,
+    );
   }
 
   Future<ViewPB> createWorkspace() async {
@@ -80,15 +82,6 @@ class AppFlowyUnitTest {
     );
     return result.fold(
       (app) => app,
-      (error) => throw Exception(error),
-    );
-  }
-
-  Future<List<ViewPB>> loadApps() async {
-    final result = await workspaceService.getPublicViews();
-
-    return result.fold(
-      (apps) => apps,
       (error) => throw Exception(error),
     );
   }
@@ -103,7 +96,7 @@ void _pathProviderInitialized() {
   });
 }
 
-class AppFlowyApplicationUniTest implements EntryPoint {
+class AppFlowyApplicationUnitTest implements EntryPoint {
   @override
   Widget create(LaunchConfiguration config) {
     return const SizedBox.shrink();

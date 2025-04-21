@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:appflowy/mobile/application/mobile_router.dart';
 import 'package:appflowy/plugins/document/application/document_appearance_cubit.dart';
+import 'package:appflowy/shared/clipboard_state.dart';
 import 'package:appflowy/shared/feature_flags.dart';
+import 'package:appflowy/shared/icon_emoji_picker/icon_picker.dart';
 import 'package:appflowy/startup/startup.dart';
-import 'package:appflowy/user/application/reminder/reminder_bloc.dart';
 import 'package:appflowy/user/application/user_settings_service.dart';
 import 'package:appflowy/workspace/application/action_navigation/action_navigation_bloc.dart';
 import 'package:appflowy/workspace/application/action_navigation/navigation_action.dart';
@@ -13,18 +14,23 @@ import 'package:appflowy/workspace/application/notification/notification_service
 import 'package:appflowy/workspace/application/settings/appearance/appearance_cubit.dart';
 import 'package:appflowy/workspace/application/settings/notifications/notification_settings_cubit.dart';
 import 'package:appflowy/workspace/application/sidebar/rename_view/rename_view_bloc.dart';
+import 'package:appflowy/workspace/application/tabs/tabs_bloc.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/presentation/command_palette/command_palette.dart';
-import 'package:appflowy_backend/log.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra/theme.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:toastification/toastification.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 import 'prelude.dart';
 
@@ -39,6 +45,8 @@ class InitAppWidgetTask extends LaunchTask {
     WidgetsFlutterBinding.ensureInitialized();
 
     await NotificationService.initialize();
+
+    await loadIconGroups();
 
     final widget = context.getIt<EntryPoint>().create(context.config);
     final appearanceSetting =
@@ -56,7 +64,6 @@ class InitAppWidgetTask extends LaunchTask {
       child: widget,
     );
 
-    Bloc.observer = ApplicationBlocObserver();
     runApp(
       EasyLocalization(
         supportedLocales: const [
@@ -73,6 +80,7 @@ class InitAppWidgetTask extends LaunchTask {
           Locale('el', 'GR'),
           Locale('fr', 'FR'),
           Locale('fr', 'CA'),
+          Locale('he'),
           Locale('hu', 'HU'),
           Locale('id', 'ID'),
           Locale('it', 'IT'),
@@ -91,6 +99,7 @@ class InitAppWidgetTask extends LaunchTask {
           Locale('zh', 'TW'),
           Locale('fa'),
           Locale('hin'),
+          Locale('mr', 'IN'),
         ],
         path: 'assets/translations',
         fallbackLocale: const Locale('en'),
@@ -163,9 +172,6 @@ class _ApplicationWidgetState extends State<ApplicationWidget> {
         ),
         BlocProvider.value(value: getIt<RenameViewBloc>()),
         BlocProvider.value(value: getIt<ActionNavigationBloc>()),
-        BlocProvider.value(
-          value: getIt<ReminderBloc>()..add(const ReminderEvent.started()),
-        ),
       ],
       child: BlocListener<ActionNavigationBloc, ActionNavigationState>(
         listenWhen: (_, curr) => curr.action != null,
@@ -173,20 +179,32 @@ class _ApplicationWidgetState extends State<ApplicationWidget> {
           final action = state.action;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (action?.type == ActionType.openView &&
-                PlatformExtension.isDesktop) {
-              final view = action!.arguments?[ActionArgumentKeys.view];
+                UniversalPlatform.isDesktop) {
+              final view =
+                  action!.arguments?[ActionArgumentKeys.view] as ViewPB?;
+              final nodePath = action.arguments?[ActionArgumentKeys.nodePath];
+              final blockId = action.arguments?[ActionArgumentKeys.blockId];
               if (view != null) {
-                AppGlobals.rootNavKey.currentContext?.pushView(view);
+                getIt<TabsBloc>().openPlugin(
+                  view,
+                  arguments: {
+                    PluginArgumentKeys.selection: nodePath,
+                    PluginArgumentKeys.blockId: blockId,
+                  },
+                );
               }
             } else if (action?.type == ActionType.openRow &&
-                PlatformExtension.isMobile) {
+                UniversalPlatform.isMobile) {
               final view = action!.arguments?[ActionArgumentKeys.view];
               if (view != null) {
                 final view = action.arguments?[ActionArgumentKeys.view];
                 final rowId = action.arguments?[ActionArgumentKeys.rowId];
-                AppGlobals.rootNavKey.currentContext?.pushView(view, {
-                  PluginArgumentKeys.rowId: rowId,
-                });
+                AppGlobals.rootNavKey.currentContext?.pushView(
+                  view,
+                  arguments: {
+                    PluginArgumentKeys.rowId: rowId,
+                  },
+                );
               }
             }
           });
@@ -194,31 +212,59 @@ class _ApplicationWidgetState extends State<ApplicationWidget> {
         child: BlocBuilder<AppearanceSettingsCubit, AppearanceSettingsState>(
           builder: (context, state) {
             _setSystemOverlayStyle(state);
-            return MaterialApp.router(
-              builder: (context, child) => MediaQuery(
-                // use the 1.0 as the textScaleFactor to avoid the text size
-                //  affected by the system setting.
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: TextScaler.linear(state.textScaleFactor),
-                ),
-                child: overlayManagerBuilder(
-                  context,
-                  !PlatformExtension.isMobile && FeatureFlag.search.isOn
-                      ? CommandPalette(
-                          notifier: _commandPaletteNotifier,
-                          child: child,
-                        )
-                      : child,
+            return Provider(
+              create: (_) => ClipboardState(),
+              dispose: (_, state) => state.dispose(),
+              child: ToastificationWrapper(
+                child: Listener(
+                  onPointerSignal: (pointerSignal) {
+                    /// This is a workaround to deal with below question:
+                    /// When the mouse hovers over the tooltip, the scroll event is intercepted by it
+                    /// Here, we listen for the scroll event and then remove the tooltip to avoid that situation
+                    if (pointerSignal is PointerScrollEvent) {
+                      Tooltip.dismissAllToolTips();
+                    }
+                  },
+                  child: MaterialApp.router(
+                    debugShowCheckedModeBanner: false,
+                    theme: state.lightTheme,
+                    darkTheme: state.darkTheme,
+                    themeMode: state.themeMode,
+                    localizationsDelegates: context.localizationDelegates,
+                    supportedLocales: context.supportedLocales,
+                    locale: state.locale,
+                    routerConfig: routerConfig,
+                    builder: (context, child) {
+                      final themeBuilder = AppFlowyDefaultTheme();
+                      final brightness = Theme.of(context).brightness;
+
+                      return AnimatedAppFlowyTheme(
+                        data: brightness == Brightness.light
+                            ? themeBuilder.light()
+                            : themeBuilder.dark(),
+                        child: MediaQuery(
+                          // use the 1.0 as the textScaleFactor to avoid the text size
+                          //  affected by the system setting.
+                          data: MediaQuery.of(context).copyWith(
+                            textScaler:
+                                TextScaler.linear(state.textScaleFactor),
+                          ),
+                          child: overlayManagerBuilder(
+                            context,
+                            !UniversalPlatform.isMobile &&
+                                    FeatureFlag.search.isOn
+                                ? CommandPalette(
+                                    notifier: _commandPaletteNotifier,
+                                    child: child,
+                                  )
+                                : child,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-              debugShowCheckedModeBanner: false,
-              theme: state.lightTheme,
-              darkTheme: state.darkTheme,
-              themeMode: state.themeMode,
-              localizationsDelegates: context.localizationDelegates,
-              supportedLocales: context.supportedLocales,
-              locale: state.locale,
-              routerConfig: routerConfig,
             );
           },
         ),
@@ -228,23 +274,12 @@ class _ApplicationWidgetState extends State<ApplicationWidget> {
 
   void _setSystemOverlayStyle(AppearanceSettingsState state) {
     if (Platform.isAndroid) {
-      SystemUiOverlayStyle style = SystemUiOverlayStyle.dark;
-      final themeMode = state.themeMode;
-      if (themeMode == ThemeMode.dark) {
-        style = SystemUiOverlayStyle.light;
-      } else if (themeMode == ThemeMode.light) {
-        style = SystemUiOverlayStyle.dark;
-      } else {
-        final brightness = Theme.of(context).brightness;
-        // reverse the brightness of the system status bar.
-        style = brightness == Brightness.dark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark;
-      }
-
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.edgeToEdge,
+        overlays: [],
+      );
       SystemChrome.setSystemUIOverlayStyle(
-        style.copyWith(
-          statusBarColor: Colors.transparent,
+        const SystemUiOverlayStyle(
           systemNavigationBarColor: Colors.transparent,
         ),
       );
@@ -253,17 +288,11 @@ class _ApplicationWidgetState extends State<ApplicationWidget> {
 }
 
 class AppGlobals {
-  // static GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey();
   static GlobalKey<NavigatorState> rootNavKey = GlobalKey();
-  static NavigatorState get nav => rootNavKey.currentState!;
-}
 
-class ApplicationBlocObserver extends BlocObserver {
-  @override
-  void onError(BlocBase bloc, Object error, StackTrace stackTrace) {
-    Log.debug(error);
-    super.onError(bloc, error, stackTrace);
-  }
+  static NavigatorState get nav => rootNavKey.currentState!;
+
+  static BuildContext get context => rootNavKey.currentContext!;
 }
 
 Future<AppTheme> appTheme(String themeName) async {

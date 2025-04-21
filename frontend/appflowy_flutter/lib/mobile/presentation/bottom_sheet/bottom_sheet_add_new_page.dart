@@ -21,39 +21,58 @@ class AddNewPageWidgetBottomSheet extends StatelessWidget {
       children: [
         FlowyOptionTile.text(
           text: LocaleKeys.document_menuName.tr(),
+          height: 52.0,
           leftIcon: const FlowySvg(
-            FlowySvgs.document_s,
+            FlowySvgs.icon_document_s,
             size: Size.square(20),
           ),
           showTopBorder: false,
+          showBottomBorder: false,
           onTap: () => onAction(ViewLayoutPB.Document),
         ),
         FlowyOptionTile.text(
           text: LocaleKeys.grid_menuName.tr(),
+          height: 52.0,
           leftIcon: const FlowySvg(
-            FlowySvgs.grid_s,
+            FlowySvgs.icon_grid_s,
             size: Size.square(20),
           ),
           showTopBorder: false,
+          showBottomBorder: false,
           onTap: () => onAction(ViewLayoutPB.Grid),
         ),
         FlowyOptionTile.text(
           text: LocaleKeys.board_menuName.tr(),
+          height: 52.0,
           leftIcon: const FlowySvg(
-            FlowySvgs.board_s,
+            FlowySvgs.icon_board_s,
             size: Size.square(20),
           ),
           showTopBorder: false,
+          showBottomBorder: false,
           onTap: () => onAction(ViewLayoutPB.Board),
         ),
         FlowyOptionTile.text(
           text: LocaleKeys.calendar_menuName.tr(),
+          height: 52.0,
           leftIcon: const FlowySvg(
-            FlowySvgs.date_s,
+            FlowySvgs.icon_calendar_s,
             size: Size.square(20),
           ),
           showTopBorder: false,
+          showBottomBorder: false,
           onTap: () => onAction(ViewLayoutPB.Calendar),
+        ),
+        FlowyOptionTile.text(
+          text: LocaleKeys.chat_newChat.tr(),
+          height: 52.0,
+          leftIcon: const FlowySvg(
+            FlowySvgs.chat_ai_page_s,
+            size: Size.square(20),
+          ),
+          showTopBorder: false,
+          showBottomBorder: false,
+          onTap: () => onAction(ViewLayoutPB.Chat),
         ),
       ],
     );

@@ -16,6 +16,8 @@ const double _kMinimumWidth = 112.0;
 
 const double _kDefaultHorizontalPadding = 12.0;
 
+typedef CompareFunction<T> = bool Function(T? left, T? right);
+
 // Navigation shortcuts to move the selected menu items up or down.
 final Map<ShortcutActivator, Intent> _kMenuTraversalShortcuts =
     <ShortcutActivator, Intent>{
@@ -86,6 +88,7 @@ class AFDropdownMenu<T> extends StatefulWidget {
     this.requestFocusOnTap,
     this.expandedInsets,
     this.searchCallback,
+    this.selectOptionCompare,
     required this.dropdownMenuEntries,
   });
 
@@ -267,6 +270,11 @@ class AFDropdownMenu<T> extends StatefulWidget {
   /// which contains the contents of the text input field.
   final SearchCallback<T>? searchCallback;
 
+  /// Defines the compare function for the menu items.
+  ///
+  /// Defaults to null. If this is null, the menu items will be sorted by the label.
+  final CompareFunction<T>? selectOptionCompare;
+
   @override
   State<AFDropdownMenu<T>> createState() => _AFDropdownMenuState<T>();
 }
@@ -301,7 +309,16 @@ class _AFDropdownMenuState<T> extends State<AFDropdownMenu<T>> {
         filteredEntries.any((DropdownMenuEntry<T> entry) => entry.enabled);
 
     final int index = filteredEntries.indexWhere(
-      (DropdownMenuEntry<T> entry) => entry.value == widget.initialSelection,
+      (DropdownMenuEntry<T> entry) {
+        if (widget.selectOptionCompare != null) {
+          return widget.selectOptionCompare!(
+            entry.value,
+            widget.initialSelection,
+          );
+        } else {
+          return entry.value == widget.initialSelection;
+        }
+      },
     );
     if (index != -1) {
       _textEditingController.value = TextEditingValue(
@@ -391,17 +408,23 @@ class _AFDropdownMenuState<T> extends State<AFDropdownMenu<T>> {
     );
   }
 
+  // Remove the code here, it will throw a FlutterError
+  // Unless we upgrade to Flutter 3.24 https://github.com/flutter/flutter/issues/146764
   void scrollToHighlight() {
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) {
-        final BuildContext? highlightContext =
-            buttonItemKeys[currentHighlight!].currentContext;
-        if (highlightContext != null) {
-          Scrollable.ensureVisible(highlightContext);
-        }
-      },
-      debugLabel: 'DropdownMenu.scrollToHighlight',
-    );
+    // WidgetsBinding.instance.addPostFrameCallback(
+    //   (_) {
+    //     // try {
+    //   final BuildContext? highlightContext =
+    //       buttonItemKeys[currentHighlight!].currentContext;
+    //   if (highlightContext != null) {
+    //     Scrollable.ensureVisible(highlightContext);
+    //   }
+    // } catch (_) {
+    //   return;
+    // }
+    //   },
+    //   debugLabel: 'DropdownMenu.scrollToHighlight',
+    // );
   }
 
   double? getWidth(GlobalKey key) {
@@ -481,7 +504,7 @@ class _AFDropdownMenuState<T> extends State<AFDropdownMenu<T>> {
 
       ButtonStyle effectiveStyle = entry.style ?? defaultStyle;
       final Color focusedBackgroundColor = effectiveStyle.foregroundColor
-              ?.resolve(<MaterialState>{MaterialState.focused}) ??
+              ?.resolve(<WidgetState>{WidgetState.focused}) ??
           Theme.of(context).colorScheme.onSurface;
 
       Widget label = entry.labelWidget ?? Text(entry.label);
@@ -496,11 +519,11 @@ class _AFDropdownMenuState<T> extends State<AFDropdownMenu<T>> {
 
       // Simulate the focused state because the text field should always be focused
       // during traversal. If the menu item has a custom foreground color, the "focused"
-      // color will also change to foregroundColor.withOpacity(0.12).
+      // color will also change to foregroundColor.withValues(alpha: 0.12).
       effectiveStyle = entry.enabled && i == focusedIndex
           ? effectiveStyle.copyWith(
-              backgroundColor: MaterialStatePropertyAll<Color>(
-                focusedBackgroundColor.withOpacity(0.12),
+              backgroundColor: WidgetStatePropertyAll<Color>(
+                focusedBackgroundColor.withValues(alpha: 0.12),
               ),
             )
           : effectiveStyle;
@@ -628,17 +651,17 @@ class _AFDropdownMenuState<T> extends State<AFDropdownMenu<T>> {
     final double? anchorWidth = getWidth(_anchorKey);
     if (widget.width != null) {
       effectiveMenuStyle = effectiveMenuStyle.copyWith(
-        minimumSize: MaterialStatePropertyAll<Size?>(Size(widget.width!, 0.0)),
+        minimumSize: WidgetStatePropertyAll<Size?>(Size(widget.width!, 0.0)),
       );
     } else if (anchorWidth != null) {
       effectiveMenuStyle = effectiveMenuStyle.copyWith(
-        minimumSize: MaterialStatePropertyAll<Size?>(Size(anchorWidth, 0.0)),
+        minimumSize: WidgetStatePropertyAll<Size?>(Size(anchorWidth, 0.0)),
       );
     }
 
     if (widget.menuHeight != null) {
       effectiveMenuStyle = effectiveMenuStyle.copyWith(
-        maximumSize: MaterialStatePropertyAll<Size>(
+        maximumSize: WidgetStatePropertyAll<Size>(
           Size(double.infinity, widget.menuHeight!),
         ),
       );
@@ -1029,8 +1052,8 @@ class _DropdownMenuDefaultsM3 extends DropdownMenuThemeData {
   @override
   MenuStyle get menuStyle {
     return const MenuStyle(
-      minimumSize: MaterialStatePropertyAll<Size>(Size(_kMinimumWidth, 0.0)),
-      maximumSize: MaterialStatePropertyAll<Size>(Size.infinite),
+      minimumSize: WidgetStatePropertyAll<Size>(Size(_kMinimumWidth, 0.0)),
+      maximumSize: WidgetStatePropertyAll<Size>(Size.infinite),
       visualDensity: VisualDensity.standard,
     );
   }

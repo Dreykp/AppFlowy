@@ -1,11 +1,11 @@
 import 'dart:async';
 
+import 'package:appflowy/plugins/database/application/cell/bloc/text_cell_bloc.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller.dart';
 import 'package:appflowy/plugins/database/application/cell/cell_controller_builder.dart';
 import 'package:appflowy/plugins/database/application/database_controller.dart';
-import 'package:appflowy/plugins/database/widgets/row/cells/cell_container.dart';
-import 'package:appflowy/plugins/database/application/cell/bloc/text_cell_bloc.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_builder.dart';
+import 'package:appflowy/plugins/database/widgets/row/cells/cell_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -29,6 +29,7 @@ abstract class IEditableTextCellSkin {
   Widget build(
     BuildContext context,
     CellContainerNotifier cellContainerNotifier,
+    ValueNotifier<bool> compactModeNotifier,
     TextCellBloc bloc,
     FocusNode focusNode,
     TextEditingController textEditingController,
@@ -79,16 +80,20 @@ class _TextCellState extends GridEditableTextCell<EditableTextCell> {
     return BlocProvider.value(
       value: cellBloc,
       child: BlocListener<TextCellBloc, TextCellState>(
+        listenWhen: (previous, current) => previous.content != current.content,
         listener: (context, state) {
-          if (!focusNode.hasFocus) {
-            _textEditingController.text = state.content;
-          }
+          // It's essential to set the new content to the textEditingController.
+          // If you don't, the old value in textEditingController will persist and
+          // overwrite the correct value, leading to inconsistencies between the
+          // displayed text and the actual data.
+          _textEditingController.text = state.content ?? "";
         },
         child: Builder(
           builder: (context) {
             return widget.skin.build(
               context,
               widget.cellContainerNotifier,
+              widget.databaseController.compactModeNotifier,
               cellBloc,
               focusNode,
               _textEditingController,

@@ -1,14 +1,21 @@
 import 'package:appflowy_backend/protobuf/flowy-user/date_time.pbenum.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-const _localFmt = 'M/d/y';
-const _usFmt = 'y/M/d';
-const _isoFmt = 'y-M-d';
-const _friendlyFmt = 'MMM d, y';
-const _dmyFmt = 'd/M/y';
+const _localFmt = 'MM/dd/y';
+const _usFmt = 'y/MM/dd';
+const _isoFmt = 'y-MM-dd';
+const _friendlyFmt = 'MMM dd, y';
+const _dmyFmt = 'dd/MM/y';
 
 extension DateFormatter on UserDateFormatPB {
-  DateFormat get toFormat => DateFormat(_toFormat[this] ?? _friendlyFmt);
+  DateFormat get toFormat {
+    try {
+      return DateFormat(_toFormat[this] ?? _friendlyFmt);
+    } catch (_) {
+      // fallback to en-US
+      return DateFormat(_toFormat[this] ?? _friendlyFmt, 'en-US');
+    }
+  }
 
   String formatDate(
     DateTime date,

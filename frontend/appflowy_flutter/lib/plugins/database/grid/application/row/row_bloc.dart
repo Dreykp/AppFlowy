@@ -26,6 +26,7 @@ class RowBloc extends Bloc<RowEvent, RowState> {
     _dispatch();
     _startListening();
     _init();
+    rowController.initialize();
   }
 
   final FieldController fieldController;
@@ -36,7 +37,7 @@ class RowBloc extends Bloc<RowEvent, RowState> {
 
   @override
   Future<void> close() async {
-    _rowController.dispose();
+    await _rowController.dispose();
     return super.close();
   }
 
@@ -69,20 +70,19 @@ class RowBloc extends Bloc<RowEvent, RowState> {
     );
   }
 
-  void _startListening() {
-    _rowController.addListener(
-      onRowChanged: (cells, reason) {
-        if (!isClosed) {
-          add(RowEvent.didReceiveCells(cells, reason));
-        }
-      },
-    );
+  void _startListening() =>
+      _rowController.addListener(onRowChanged: _onRowChanged);
+
+  void _onRowChanged(List<CellContext> cells, ChangedReason reason) {
+    if (!isClosed) {
+      add(RowEvent.didReceiveCells(cells, reason));
+    }
   }
 
   void _init() {
     add(
       RowEvent.didReceiveCells(
-        _rowController.loadData(),
+        _rowController.loadCells(),
         const ChangedReason.setInitialRows(),
       ),
     );

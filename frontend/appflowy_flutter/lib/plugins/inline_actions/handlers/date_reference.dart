@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import 'package:appflowy/date/date_service.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/base/string_extension.dart';
@@ -8,6 +6,7 @@ import 'package:appflowy/plugins/inline_actions/inline_actions_result.dart';
 import 'package:appflowy/plugins/inline_actions/service_handler.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/material.dart';
 
 final _keywords = [
   LocaleKeys.inlineActions_date.tr().toLowerCase(),
@@ -122,13 +121,13 @@ class DateReferenceService extends InlineActionsDelegate {
         node,
         start,
         end,
-        '\$',
-        attributes: {
-          MentionBlockKeys.mention: {
-            MentionBlockKeys.type: MentionType.date.name,
-            MentionBlockKeys.date: date.toIso8601String(),
-          },
-        },
+        MentionBlockKeys.mentionChar,
+        attributes: MentionBlockKeys.buildMentionDateAttributes(
+          date: date.toIso8601String(),
+          includeTime: false,
+          reminderId: null,
+          reminderOption: null,
+        ),
       );
 
     await editorState.apply(transaction);
@@ -139,22 +138,36 @@ class DateReferenceService extends InlineActionsDelegate {
     final tomorrow = today.add(const Duration(days: 1));
     final yesterday = today.subtract(const Duration(days: 1));
 
-    _allOptions = [
-      _itemFromDate(
+    late InlineActionsMenuItem todayItem;
+    late InlineActionsMenuItem tomorrowItem;
+    late InlineActionsMenuItem yesterdayItem;
+
+    try {
+      todayItem = _itemFromDate(
         today,
         LocaleKeys.relativeDates_today.tr(),
         [DateFormat.yMd(_locale).format(today)],
-      ),
-      _itemFromDate(
+      );
+      tomorrowItem = _itemFromDate(
         tomorrow,
         LocaleKeys.relativeDates_tomorrow.tr(),
         [DateFormat.yMd(_locale).format(tomorrow)],
-      ),
-      _itemFromDate(
+      );
+      yesterdayItem = _itemFromDate(
         yesterday,
         LocaleKeys.relativeDates_yesterday.tr(),
         [DateFormat.yMd(_locale).format(yesterday)],
-      ),
+      );
+    } catch (e) {
+      todayItem = _itemFromDate(today);
+      tomorrowItem = _itemFromDate(tomorrow);
+      yesterdayItem = _itemFromDate(yesterday);
+    }
+
+    _allOptions = [
+      todayItem,
+      tomorrowItem,
+      yesterdayItem,
     ];
   }
 
@@ -174,7 +187,17 @@ class DateReferenceService extends InlineActionsDelegate {
     String? label,
     List<String>? keywords,
   ]) {
-    final labelStr = label ?? DateFormat.yMd(_locale).format(date);
+    late String labelStr;
+    if (label != null) {
+      labelStr = label;
+    } else {
+      try {
+        labelStr = DateFormat.yMd(_locale).format(date);
+      } catch (e) {
+        // fallback to en-US
+        labelStr = DateFormat.yMd('en-US').format(date);
+      }
+    }
 
     return InlineActionsMenuItem(
       label: labelStr.capitalize(),

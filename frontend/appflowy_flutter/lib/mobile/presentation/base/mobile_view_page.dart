@@ -1,18 +1,28 @@
+import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/application/base/mobile_view_page_bloc.dart';
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
 import 'package:appflowy/mobile/presentation/base/app_bar/app_bar.dart';
 import 'package:appflowy/mobile/presentation/base/view_page/app_bar_buttons.dart';
+import 'package:appflowy/mobile/presentation/presentation.dart';
 import 'package:appflowy/mobile/presentation/widgets/flowy_mobile_state_container.dart';
-import 'package:appflowy/plugins/base/emoji/emoji_text.dart';
+import 'package:appflowy/plugins/document/application/prelude.dart';
 import 'package:appflowy/plugins/document/presentation/document_collaborators.dart';
-import 'package:appflowy/plugins/shared/sync_indicator.dart';
+import 'package:appflowy/plugins/document/presentation/editor_notification.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/header/emoji_icon_widget.dart';
 import 'package:appflowy/shared/feature_flags.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
+import 'package:appflowy/shared/icon_emoji_picker/tab.dart';
+import 'package:appflowy/startup/plugin/plugin.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/user/application/reminder/reminder_bloc.dart';
 import 'package:appflowy/workspace/application/favorite/favorite_bloc.dart';
+import 'package:appflowy/workspace/application/user/user_workspace_bloc.dart';
 import 'package:appflowy/workspace/application/view/view_bloc.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
+import 'package:appflowy/workspace/application/view/view_lock_status_bloc.dart';
+import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
+import 'package:appflowy/workspace/presentation/widgets/view_title_bar.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
@@ -27,6 +37,10 @@ class MobileViewPage extends StatefulWidget {
     required this.viewLayout,
     this.title,
     this.arguments,
+    this.fixedTitle,
+    this.showMoreButton = true,
+    this.blockId,
+    this.tabs = const [PickerTabType.emoji, PickerTabType.icon],
   });
 
   /// view id
@@ -34,6 +48,12 @@ class MobileViewPage extends StatefulWidget {
   final ViewLayoutPB viewLayout;
   final String? title;
   final Map<String, dynamic>? arguments;
+  final bool showMoreButton;
+  final String? blockId;
+  final List<PickerTabType> tabs;
+
+  // only used in row page
+  final String? fixedTitle;
 
   @override
   State<MobileViewPage> createState() => _MobileViewPageState();
@@ -47,9 +67,21 @@ class _MobileViewPageState extends State<MobileViewPage> {
   final ValueNotifier<double> _appBarOpacity = ValueNotifier(1.0);
 
   @override
+  void initState() {
+    super.initState();
+
+    getIt<ReminderBloc>().add(const ReminderEvent.started());
+  }
+
+  @override
   void dispose() {
     _appBarOpacity.dispose();
+
+    // there's no need to remove the listener, because the observer will be disposed when the widget is unmounted.
+    // inside the observer, the listener will be removed automatically.
+    // _scrollNotificationObserver?.removeListener(_onScrollNotification);
     _scrollNotificationObserver = null;
+
     super.dispose();
   }
 
@@ -64,7 +96,7 @@ class _MobileViewPageState extends State<MobileViewPage> {
           final body = _buildBody(context, state);
 
           if (view == null) {
-            return _buildApp(context, null, body);
+            return SizedBox.shrink();
           }
 
           return MultiBlocProvider(
@@ -78,13 +110,27 @@ class _MobileViewPageState extends State<MobileViewPage> {
                     ViewBloc(view: view)..add(const ViewEvent.initial()),
               ),
               BlocProvider.value(
-                value: getIt<ReminderBloc>()
-                  ..add(const ReminderEvent.started()),
+                value: getIt<ReminderBloc>(),
               ),
+              BlocProvider(
+                create: (_) =>
+                    ShareBloc(view: view)..add(const ShareEvent.initial()),
+              ),
+              if (state.userProfilePB != null)
+                BlocProvider(
+                  create: (_) =>
+                      UserWorkspaceBloc(userProfile: state.userProfilePB!)
+                        ..add(const UserWorkspaceEvent.initial()),
+                ),
               if (view.layout.isDocumentView)
                 BlocProvider(
                   create: (_) => DocumentPageStyleBloc(view: view)
                     ..add(const DocumentPageStyleEvent.initial()),
+                ),
+              if (view.layout.isDocumentView || view.layout.isDatabaseView)
+                BlocProvider(
+                  create: (_) => ViewLockStatusBloc(view: view)
+                    ..add(const ViewLockStatusEvent.initial()),
                 ),
             ],
             child: Builder(
@@ -116,6 +162,7 @@ class _MobileViewPageState extends State<MobileViewPage> {
             title: title,
             appBarOpacity: _appBarOpacity,
             actions: actions,
+            view: view,
           )
         : FlowyAppBar(title: title, actions: actions);
     final body = isDocument
@@ -125,7 +172,7 @@ class _MobileViewPageState extends State<MobileViewPage> {
               return child;
             },
           )
-        : child;
+        : SafeArea(child: child);
     return Scaffold(
       extendBodyBehindAppBar: isDocument,
       appBar: appBar,
@@ -154,7 +201,15 @@ class _MobileViewPageState extends State<MobileViewPage> {
       (view) {
         final plugin = view.plugin(arguments: widget.arguments ?? const {})
           ..init();
-        return plugin.widgetBuilder.buildWidget(shrinkWrap: false);
+        return plugin.widgetBuilder.buildWidget(
+          shrinkWrap: false,
+          context: PluginContext(userProfile: state.userProfilePB),
+          data: {
+            MobileDocumentScreen.viewFixedTitle: widget.fixedTitle,
+            MobileDocumentScreen.viewBlockId: widget.blockId,
+            MobileDocumentScreen.viewSelectTabs: widget.tabs,
+          },
+        );
       },
       (error) {
         return FlowyMobileStateContainer.error(
@@ -178,6 +233,8 @@ class _MobileViewPageState extends State<MobileViewPage> {
 
     final isImmersiveMode =
         context.read<MobileViewPageBloc>().state.isImmersiveMode;
+    final isLocked =
+        context.read<ViewLockStatusBloc?>()?.state.isLocked ?? false;
     final actions = <Widget>[];
 
     if (FeatureFlag.syncDocument.isOn) {
@@ -191,60 +248,172 @@ class _MobileViewPageState extends State<MobileViewPage> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             view: view,
           ),
-          const HSpace(16.0),
-          DocumentSyncIndicator(view: view),
-          const HSpace(12.0),
-        ]);
-      } else {
-        actions.addAll([
-          DatabaseSyncIndicator(view: view),
           const HSpace(12.0),
         ]);
       }
     }
 
-    if (view.layout.isDocumentView) {
+    if (view.layout.isDocumentView && !isLocked) {
       actions.addAll([
         MobileViewPageLayoutButton(
           view: view,
           isImmersiveMode: isImmersiveMode,
           appBarOpacity: _appBarOpacity,
+          tabs: widget.tabs,
         ),
       ]);
     }
 
-    actions.addAll([
-      MobileViewPageMoreButton(
-        view: view,
-        isImmersiveMode: isImmersiveMode,
-        appBarOpacity: _appBarOpacity,
-      ),
-    ]);
+    if (widget.showMoreButton) {
+      actions.addAll([
+        MobileViewPageMoreButton(
+          view: view,
+          isImmersiveMode: isImmersiveMode,
+          appBarOpacity: _appBarOpacity,
+        ),
+      ]);
+    } else {
+      actions.addAll([
+        const HSpace(18.0),
+      ]);
+    }
 
     return actions;
   }
 
   Widget _buildTitle(BuildContext context, ViewPB? view) {
-    final icon = view?.icon.value;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null && icon.isNotEmpty)
-          ConstrainedBox(
-            constraints: const BoxConstraints.tightFor(width: 34.0),
-            child: EmojiText(
-              emoji: '$icon ',
-              fontSize: 22.0,
+    final icon = view?.icon;
+    return ValueListenableBuilder(
+      valueListenable: _appBarOpacity,
+      builder: (_, value, child) {
+        if (value < 0.99) {
+          return Padding(
+            padding: const EdgeInsets.only(left: 6.0),
+            child: _buildLockStatus(context, view),
+          );
+        }
+
+        final name =
+            widget.fixedTitle ?? view?.nameOrDefault ?? widget.title ?? '';
+
+        return Opacity(
+          opacity: value,
+          child: Row(
+            children: [
+              if (icon != null && icon.value.isNotEmpty) ...[
+                RawEmojiIconWidget(
+                  emoji: icon.toEmojiIconData(),
+                  emojiSize: 15,
+                ),
+                const HSpace(4),
+              ],
+              Flexible(
+                child: FlowyText.medium(
+                  name,
+                  fontSize: 15.0,
+                  overflow: TextOverflow.ellipsis,
+                  figmaLineHeight: 18.0,
+                ),
+              ),
+              const HSpace(4.0),
+              _buildLockStatusIcon(context, view),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLockStatus(BuildContext context, ViewPB? view) {
+    if (view == null || view.layout == ViewLayoutPB.Chat) {
+      return const SizedBox.shrink();
+    }
+
+    return BlocConsumer<ViewLockStatusBloc, ViewLockStatusState>(
+      listenWhen: (previous, current) =>
+          previous.isLoadingLockStatus == current.isLoadingLockStatus &&
+          current.isLoadingLockStatus == false,
+      listener: (context, state) {
+        if (state.isLocked) {
+          showToastNotification(
+            message: LocaleKeys.lockPage_pageLockedToast.tr(),
+          );
+
+          EditorNotification.exitEditing().post();
+        }
+      },
+      builder: (context, state) {
+        if (state.isLocked) {
+          return LockedPageStatus();
+        } else if (!state.isLocked && state.lockCounter > 0) {
+          return ReLockedPageStatus();
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  Widget _buildLockStatusIcon(BuildContext context, ViewPB? view) {
+    if (view == null || view.layout == ViewLayoutPB.Chat) {
+      return const SizedBox.shrink();
+    }
+
+    return BlocConsumer<ViewLockStatusBloc, ViewLockStatusState>(
+      listenWhen: (previous, current) =>
+          previous.isLoadingLockStatus == current.isLoadingLockStatus &&
+          current.isLoadingLockStatus == false,
+      listener: (context, state) {
+        if (state.isLocked) {
+          showToastNotification(
+            message: LocaleKeys.lockPage_pageLockedToast.tr(),
+          );
+        }
+      },
+      builder: (context, state) {
+        if (state.isLocked) {
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              context.read<ViewLockStatusBloc>().add(
+                    const ViewLockStatusEvent.unlock(),
+                  );
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: 4.0,
+                right: 8,
+                bottom: 4.0,
+              ),
+              child: FlowySvg(
+                FlowySvgs.lock_page_fill_s,
+                blendMode: null,
+              ),
             ),
-          ),
-        Expanded(
-          child: FlowyText.medium(
-            view?.name ?? widget.title ?? '',
-            fontSize: 15.0,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
+          );
+        } else if (!state.isLocked && state.lockCounter > 0) {
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              context.read<ViewLockStatusBloc>().add(
+                    const ViewLockStatusEvent.lock(),
+                  );
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: 4.0,
+                right: 8,
+                bottom: 4.0,
+              ),
+              child: FlowySvg(
+                FlowySvgs.unlock_page_s,
+                color: Color(0xFF8F959E),
+                blendMode: null,
+              ),
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 

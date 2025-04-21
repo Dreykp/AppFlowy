@@ -1,18 +1,3 @@
-use std::sync::Arc;
-use std::{
-  collections::HashMap,
-  fmt,
-  fmt::{Debug, Display},
-  future::Future,
-  hash::Hash,
-  pin::Pin,
-  task::{Context, Poll},
-};
-
-use futures_core::ready;
-use nanoid::nanoid;
-use pin_project::pin_project;
-
 use crate::dispatcher::AFConcurrent;
 use crate::prelude::{AFBoxFuture, AFStateMap};
 use crate::service::AFPluginHandler;
@@ -25,21 +10,39 @@ use crate::{
     Service, ServiceRequest, ServiceResponse,
   },
 };
+use futures_core::ready;
+use nanoid::nanoid;
+use pin_project::pin_project;
+use std::sync::Arc;
+use std::{
+  collections::HashMap,
+  fmt,
+  fmt::{Debug, Display},
+  future::Future,
+  hash::Hash,
+  pin::Pin,
+  task::{Context, Poll},
+};
 
 pub type AFPluginMap = Arc<HashMap<AFPluginEvent, Arc<AFPlugin>>>;
 pub(crate) fn plugin_map_or_crash(plugins: Vec<AFPlugin>) -> AFPluginMap {
   let mut plugin_map: HashMap<AFPluginEvent, Arc<AFPlugin>> = HashMap::new();
   plugins.into_iter().for_each(|m| {
     let events = m.events();
+    #[allow(clippy::arc_with_non_send_sync)]
     let plugins = Arc::new(m);
     events.into_iter().for_each(|e| {
       if plugin_map.contains_key(&e) {
         let plugin_name = plugin_map.get(&e).map(|p| &p.name);
-        panic!("⚠️⚠️⚠️Error: {:?} is already defined in {:?}", &e, plugin_name,);
+        panic!(
+          "⚠️⚠️⚠️Error: {:?} is already defined in {:?}",
+          &e, plugin_name,
+        );
       }
       plugin_map.insert(e, plugins.clone());
     });
   });
+  #[allow(clippy::arc_with_non_send_sync)]
   Arc::new(plugin_map)
 }
 
@@ -77,6 +80,7 @@ impl std::default::Default for AFPlugin {
     Self {
       name: "".to_owned(),
       states: Default::default(),
+      #[allow(clippy::arc_with_non_send_sync)]
       event_service_factory: Arc::new(HashMap::new()),
     }
   }
@@ -88,11 +92,11 @@ impl AFPlugin {
   }
 
   pub fn name(mut self, s: &str) -> Self {
-    self.name = s.to_owned();
+    s.clone_into(&mut self.name);
     self
   }
 
-  pub fn state<D: AFConcurrent + 'static>(mut self, data: D) -> Self {
+  pub fn state<D: Send + Sync + 'static>(mut self, data: D) -> Self {
     Arc::get_mut(&mut self.states)
       .unwrap()
       .insert(crate::module::AFPluginState::new(data));

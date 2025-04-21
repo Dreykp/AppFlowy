@@ -147,15 +147,13 @@ class ReminderReferenceService extends InlineActionsDelegate {
         node,
         start,
         end,
-        '\$',
-        attributes: {
-          MentionBlockKeys.mention: {
-            MentionBlockKeys.type: MentionType.date.name,
-            MentionBlockKeys.date: date.toIso8601String(),
-            MentionBlockKeys.reminderId: reminder.id,
-            MentionBlockKeys.reminderOption: ReminderOption.atTimeOfEvent.name,
-          },
-        },
+        MentionBlockKeys.mentionChar,
+        attributes: MentionBlockKeys.buildMentionDateAttributes(
+          date: date.toIso8601String(),
+          reminderId: reminder.id,
+          reminderOption: ReminderOption.atTimeOfEvent.name,
+          includeTime: false,
+        ),
       );
 
     await editorState.apply(transaction);
@@ -170,17 +168,32 @@ class ReminderReferenceService extends InlineActionsDelegate {
     final tomorrow = today.add(const Duration(days: 1));
     final oneWeek = today.add(const Duration(days: 7));
 
-    _allOptions = [
-      _itemFromDate(
+    late InlineActionsMenuItem todayItem;
+    late InlineActionsMenuItem oneWeekItem;
+
+    try {
+      todayItem = _itemFromDate(
         tomorrow,
         LocaleKeys.relativeDates_tomorrow.tr(),
         [DateFormat.yMd(_locale).format(tomorrow)],
-      ),
-      _itemFromDate(
+      );
+    } catch (e) {
+      todayItem = _itemFromDate(today);
+    }
+
+    try {
+      oneWeekItem = _itemFromDate(
         oneWeek,
         LocaleKeys.relativeDates_oneWeek.tr(),
         [DateFormat.yMd(_locale).format(oneWeek)],
-      ),
+      );
+    } catch (e) {
+      oneWeekItem = _itemFromDate(oneWeek);
+    }
+
+    _allOptions = [
+      todayItem,
+      oneWeekItem,
     ];
   }
 
@@ -200,7 +213,17 @@ class ReminderReferenceService extends InlineActionsDelegate {
     String? label,
     List<String>? keywords,
   ]) {
-    final labelStr = label ?? DateFormat.yMd(_locale).format(date);
+    late String labelStr;
+    if (label != null) {
+      labelStr = label;
+    } else {
+      try {
+        labelStr = DateFormat.yMd(_locale).format(date);
+      } catch (e) {
+        // fallback to en-US
+        labelStr = DateFormat.yMd('en-US').format(date);
+      }
+    }
 
     return InlineActionsMenuItem(
       label: labelStr.capitalize(),
@@ -219,6 +242,8 @@ class ReminderReferenceService extends InlineActionsDelegate {
       meta: {
         ReminderMetaKeys.includeTime: false.toString(),
         ReminderMetaKeys.blockId: node.id,
+        ReminderMetaKeys.createdAt:
+            DateTime.now().millisecondsSinceEpoch.toString(),
       },
       scheduledAt: Int64(date.millisecondsSinceEpoch ~/ 1000),
       isAck: date.isBefore(DateTime.now()),

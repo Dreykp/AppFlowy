@@ -6,7 +6,6 @@ import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/application/view/view_service.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
-import 'package:appflowy_result/appflowy_result.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -23,11 +22,16 @@ class DocumentPageStyleBloc
         await event.when(
           initial: () async {
             try {
-              final layoutObject =
-                  await ViewBackendService.getView(view.id).fold(
-                (s) => jsonDecode(s.extra),
-                (f) => {},
-              );
+              if (view.id.isEmpty) {
+                return;
+              }
+              Map layoutObject = {};
+              final data = await ViewBackendService.getView(view.id);
+              data.onSuccess((s) {
+                if (s.extra.isNotEmpty) {
+                  layoutObject = jsonDecode(s.extra);
+                }
+              });
               final fontLayout = _getSelectedFontLayout(layoutObject);
               final lineHeightLayout = _getSelectedLineHeightLayout(
                 layoutObject,
@@ -146,7 +150,7 @@ class DocumentPageStyleBloc
   ) {
     double padding = switch (fontLayout) {
       PageStyleFontLayout.small => 1.0,
-      PageStyleFontLayout.normal => 2.0,
+      PageStyleFontLayout.normal => 1.0,
       PageStyleFontLayout.large => 4.0,
     };
     switch (lineHeightLayout) {
@@ -160,6 +164,16 @@ class DocumentPageStyleBloc
         break;
     }
     return max(0, padding);
+  }
+
+  double calculateIconScale(
+    PageStyleFontLayout fontLayout,
+  ) {
+    return switch (fontLayout) {
+      PageStyleFontLayout.small => 0.8,
+      PageStyleFontLayout.normal => 1.0,
+      PageStyleFontLayout.large => 1.2,
+    };
   }
 
   PageStyleFontLayout _getSelectedFontLayout(Map layoutObject) {
@@ -428,4 +442,15 @@ class PageStyleCover {
   bool get isCustomImage => type == PageStyleCoverImageType.customImage;
   bool get isUnsplashImage => type == PageStyleCoverImageType.unsplashImage;
   bool get isLocalImage => type == PageStyleCoverImageType.localImage;
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! PageStyleCover) {
+      return false;
+    }
+    return type == other.type && value == other.value;
+  }
+
+  @override
+  int get hashCode => Object.hash(type, value);
 }

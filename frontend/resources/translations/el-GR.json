@@ -179,7 +179,7 @@
     "underline": "Υπογράμμιση",
     "strike": "Διακριτή διαγραφή",
     "numList": "Αριθμημένη λίστα",
-    "bulletList": "Bulleted List",
+    "bulletList": "Bulleted list",
     "checkList": "Check List",
     "inlineCode": "Inline Code",
     "quote": "Quote Block",
@@ -201,8 +201,8 @@
     "addBlockBelow": "Add a block below"
   },
   "sideBar": {
-    "closeSidebar": "Close side bar",
-    "openSidebar": "Open side bar",
+    "closeSidebar": "Close sidebar",
+    "openSidebar": "Open sidebar",
     "personal": "Personal",
     "favorites": "Favorites",
     "clickToHidePersonal": "Click to hide personal section",
@@ -305,12 +305,7 @@
       "cloudServerType": "Cloud server",
       "cloudServerTypeTip": "Please note that it might log out your current account after switching the cloud server",
       "cloudLocal": "Local",
-      "cloudSupabase": "Supabase",
-      "cloudSupabaseUrl": "Supabase URL",
-      "cloudSupabaseUrlCanNotBeEmpty": "The supabase url can't be empty",
-      "cloudSupabaseAnonKey": "Supabase anon key",
-      "cloudSupabaseAnonKeyCanNotBeEmpty": "The anon key can't be empty",
-      "cloudAppFlowy": "AppFlowy Cloud Beta",
+      "cloudAppFlowy": "AppFlowy Cloud",
       "cloudAppFlowySelfHost": "AppFlowy Cloud Self-hosted",
       "appFlowyCloudUrlCanNotBeEmpty": "The cloud url can't be empty",
       "clickToCopy": "Click to copy",
@@ -477,7 +472,7 @@
       "email": "Email",
       "tooltipSelectIcon": "Select icon",
       "selectAnIcon": "Select an icon",
-      "pleaseInputYourOpenAIKey": "παρακαλώ εισάγετε το OpenAI κλειδί σας",
+      "pleaseInputYourOpenAIKey": "παρακαλώ εισάγετε το AI κλειδί σας",
       "pleaseInputYourStabilityAIKey": "παρακαλώ εισάγετε το Stability AI κλειδί σας",
       "clickToLogout": "Κάντε κλικ για αποσύνδεση του τρέχοντος χρήστη"
     },
@@ -729,8 +724,7 @@
     "url": {
       "launch": "Άνοιγμα συνδέσμου στο πρόγραμμα περιήγησης",
       "copy": "Copy link to clipboard",
-      "textFieldHint": "Enter a URL",
-      "copiedNotification": "Copied to clipboard!"
+      "textFieldHint": "Enter a URL"
     },
     "relation": {
       "relatedDatabasePlaceLabel": "Related Database",
@@ -789,23 +783,23 @@
       "referencedGrid": "Referenced Grid",
       "referencedCalendar": "Referenced Calendar",
       "referencedDocument": "Referenced Document",
-      "autoGeneratorMenuItemName": "OpenAI Writer",
-      "autoGeneratorTitleName": "OpenAI: Ask AI to write anything...",
+      "autoGeneratorMenuItemName": "AI Writer",
+      "autoGeneratorTitleName": "AI: Ask AI to write anything...",
       "autoGeneratorLearnMore": "Μάθετε περισσότερα",
       "autoGeneratorGenerate": "Generate",
-      "autoGeneratorHintText": "Ρωτήστε Το OpenAI ...",
-      "autoGeneratorCantGetOpenAIKey": "Αδυναμία λήψης κλειδιού OpenAI",
+      "autoGeneratorHintText": "Ρωτήστε Το AI ...",
+      "autoGeneratorCantGetOpenAIKey": "Αδυναμία λήψης κλειδιού AI",
       "autoGeneratorRewrite": "Rewrite",
       "smartEdit": "AI Assistants",
-      "openAI": "OpenAI",
+      "aI": "AI",
       "smartEditFixSpelling": "Διόρθωση ορθογραφίας",
       "warning": "⚠️ Οι απαντήσεις AI μπορεί να είναι ανακριβείς ή παραπλανητικές.",
       "smartEditSummarize": "Summarize",
       "smartEditImproveWriting": "Improve writing",
       "smartEditMakeLonger": "Make longer",
-      "smartEditCouldNotFetchResult": "Could not fetch result from OpenAI",
-      "smartEditCouldNotFetchKey": "Could not fetch OpenAI key",
-      "smartEditDisabled": "Connect OpenAI in Settings",
+      "smartEditCouldNotFetchResult": "Could not fetch result from AI",
+      "smartEditCouldNotFetchKey": "Could not fetch AI key",
+      "smartEditDisabled": "Connect AI in Settings",
       "discardResponse": "Do you want to discard the AI responses?",
       "createInlineMathEquation": "Create equation",
       "fonts": "Γραμματοσειρές",
@@ -813,7 +807,7 @@
       "quoteList": "Quote list",
       "numberedList": "Αριθμημένη λίστα",
       "bulletedList": "Bulleted list",
-      "todoList": "Todo List",
+      "todoList": "Todo list",
       "callout": "Callout",
       "cover": {
         "changeCover": "Change Cover",
@@ -919,8 +913,8 @@
         "placeholder": "Enter image URL"
       },
       "ai": {
-        "label": "Generate image from OpenAI",
-        "placeholder": "Please input the prompt for OpenAI to generate image"
+        "label": "Generate image from AI",
+        "placeholder": "Please input the prompt for AI to generate image"
       },
       "stability_ai": {
         "label": "Generate image from Stability AI",
@@ -942,7 +936,7 @@
         "label": "Unsplash"
       },
       "searchForAnImage": "Search for an image",
-      "pleaseInputYourOpenAIKey": "please input your OpenAI key in Settings page",
+      "pleaseInputYourOpenAIKey": "please input your AI key in Settings page",
       "pleaseInputYourStabilityAIKey": "please input your Stability AI key in Settings page",
       "saveImageToGallery": "Save image",
       "failedToAddImageToGallery": "Failed to add image to gallery",
@@ -1221,7 +1215,7 @@
   },
   "editor": {
     "bold": "Bold",
-    "bulletedList": "Bulleted List",
+    "bulletedList": "Bulleted list",
     "bulletedListShortForm": "Bulleted",
     "checkbox": "Checkbox",
     "embedCode": "Embed Code",
@@ -1234,7 +1228,7 @@
     "date": "Date",
     "italic": "Italic",
     "link": "Link",
-    "numberedList": "Numbered List",
+    "numberedList": "Numbered list",
     "numberedListShortForm": "Numbered",
     "quote": "Quote",
     "strikethrough": "Strikethrough",

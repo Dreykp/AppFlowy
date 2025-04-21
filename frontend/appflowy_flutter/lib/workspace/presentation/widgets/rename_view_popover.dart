@@ -1,28 +1,34 @@
-import 'package:flutter/widgets.dart';
-
 import 'package:appflowy/plugins/document/presentation/editor_plugins/base/emoji_picker_button.dart';
+import 'package:appflowy/shared/icon_emoji_picker/tab.dart';
 import 'package:appflowy/workspace/application/view/view_service.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:appflowy_popover/appflowy_popover.dart';
 import 'package:flowy_infra_ui/style_widget/text_field.dart';
 import 'package:flowy_infra_ui/widget/spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+
+import '../../../shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
 
 class RenameViewPopover extends StatefulWidget {
   const RenameViewPopover({
     super.key,
-    required this.viewId,
+    required this.view,
     required this.name,
     required this.popoverController,
     required this.emoji,
     this.icon,
     this.showIconChanger = true,
+    this.tabs = const [PickerTabType.emoji, PickerTabType.icon],
   });
 
-  final String viewId;
+  final ViewPB view;
   final String name;
   final PopoverController popoverController;
-  final String emoji;
+  final EmojiIconData emoji;
   final Widget? icon;
   final bool showIconChanger;
+  final List<PickerTabType> tabs;
 
   @override
   State<RenameViewPopover> createState() => _RenameViewPopoverState();
@@ -51,17 +57,22 @@ class _RenameViewPopoverState extends State<RenameViewPopover> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.showIconChanger) ...[
-          EmojiPickerButton(
-            emoji: widget.emoji,
-            defaultIcon: widget.icon,
-            direction: PopoverDirection.bottomWithCenterAligned,
-            offset: const Offset(0, 18),
-            onSubmitted: _updateViewIcon,
+          SizedBox(
+            width: 30.0,
+            child: EmojiPickerButton(
+              emoji: widget.emoji,
+              defaultIcon: widget.icon,
+              direction: PopoverDirection.bottomWithCenterAligned,
+              offset: const Offset(0, 18),
+              onSubmitted: _updateViewIcon,
+              documentId: widget.view.id,
+              tabs: widget.tabs,
+            ),
           ),
           const HSpace(6),
         ],
         SizedBox(
-          height: 36.0,
+          height: 32.0,
           width: 220,
           child: FlowyTextField(
             controller: _controller,
@@ -78,18 +89,23 @@ class _RenameViewPopoverState extends State<RenameViewPopover> {
   Future<void> _updateViewName(String name) async {
     if (name.isNotEmpty && name != widget.name) {
       await ViewBackendService.updateView(
-        viewId: widget.viewId,
+        viewId: widget.view.id,
         name: _controller.text,
       );
       widget.popoverController.close();
     }
   }
 
-  Future<void> _updateViewIcon(String emoji, PopoverController? _) async {
+  Future<void> _updateViewIcon(
+    SelectedEmojiIconResult r,
+    PopoverController? _,
+  ) async {
     await ViewBackendService.updateViewIcon(
-      viewId: widget.viewId,
-      viewIcon: emoji,
+      view: widget.view,
+      viewIcon: r.data,
     );
-    widget.popoverController.close();
+    if (!r.keepOpen) {
+      widget.popoverController.close();
+    }
   }
 }

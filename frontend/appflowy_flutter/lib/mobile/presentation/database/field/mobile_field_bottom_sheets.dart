@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/base/type_option_menu_item.dart';
 import 'package:appflowy/mobile/presentation/bottom_sheet/bottom_sheet.dart';
@@ -7,7 +9,7 @@ import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.da
 import 'package:appflowy/util/field_type_extension.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/material.dart';
+import 'package:flowy_infra/theme_extension.dart';
 import 'package:go_router/go_router.dart';
 
 import 'mobile_create_field_screen.dart';
@@ -19,14 +21,16 @@ import 'mobile_quick_field_editor.dart';
 const mobileSupportedFieldTypes = [
   FieldType.RichText,
   FieldType.Number,
-  FieldType.URL,
   FieldType.SingleSelect,
   FieldType.MultiSelect,
   FieldType.DateTime,
-  FieldType.LastEditedTime,
-  FieldType.CreatedTime,
+  FieldType.Media,
+  FieldType.URL,
   FieldType.Checkbox,
   FieldType.Checklist,
+  FieldType.LastEditedTime,
+  FieldType.CreatedTime,
+  // FieldType.Time,
 ];
 
 Future<FieldType?> showFieldTypeGridBottomSheet(
@@ -40,7 +44,7 @@ Future<FieldType?> showFieldTypeGridBottomSheet(
     showCloseButton: true,
     elevation: 20,
     title: title,
-    backgroundColor: Theme.of(context).colorScheme.background,
+    backgroundColor: AFThemeExtension.of(context).background,
     enableDraggableScrollable: true,
     builder: (context) {
       final typeOptionMenuItemValue = mobileSupportedFieldTypes

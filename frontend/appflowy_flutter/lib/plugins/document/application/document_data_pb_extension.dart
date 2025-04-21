@@ -13,12 +13,10 @@ import 'package:appflowy_editor/appflowy_editor.dart'
         NodeIterator,
         NodeExternalValues,
         HeadingBlockKeys,
-        QuoteBlockKeys,
         NumberedListBlockKeys,
         BulletedListBlockKeys,
         blockComponentDelta;
 import 'package:appflowy_editor_plugins/appflowy_editor_plugins.dart';
-import 'package:collection/collection.dart';
 import 'package:nanoid/nanoid.dart';
 
 class ExternalValues extends NodeExternalValues {
@@ -105,7 +103,7 @@ extension DocumentDataPBFromTo on DocumentDataPB {
 
     final children = <Node>[];
     if (childrenIds != null && childrenIds.isNotEmpty) {
-      children.addAll(childrenIds.map((e) => buildNode(e)).whereNotNull());
+      children.addAll(childrenIds.map((e) => buildNode(e)).nonNulls);
     }
 
     final node = block?.toNode(
@@ -180,6 +178,8 @@ extension NodeToBlock on Node {
     String? parentId,
     String? childrenId,
     Attributes? attributes,
+    String? externalId,
+    String? externalType,
   }) {
     assert(id.isNotEmpty);
     final block = BlockPB.create()
@@ -192,10 +192,29 @@ extension NodeToBlock on Node {
     if (parentId != null && parentId.isNotEmpty) {
       block.parentId = parentId;
     }
+    if (externalId != null && externalId.isNotEmpty) {
+      block.externalId = externalId;
+    }
+    if (externalType != null && externalType.isNotEmpty) {
+      block.externalType = externalType;
+    }
     return block;
   }
 
   String _dataAdapter(String type, Attributes attributes) {
-    return jsonEncode(attributes);
+    try {
+      return jsonEncode(
+        attributes,
+        toEncodable: (value) {
+          if (value is Map) {
+            return jsonEncode(value);
+          }
+          return value;
+        },
+      );
+    } catch (e) {
+      Log.error('encode attributes error: $e');
+      return '{}';
+    }
   }
 }

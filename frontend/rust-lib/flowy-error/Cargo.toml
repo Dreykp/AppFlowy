@@ -13,7 +13,7 @@ protobuf.workspace = true
 bytes.workspace = true
 anyhow.workspace = true
 thiserror = "1.0"
-validator = "0.16.0"
+validator.workspace = true
 tokio = { workspace = true, features = ["sync", "rt"] }
 
 fancy-regex = { version = "0.11.0" }
@@ -22,28 +22,30 @@ serde_json.workspace = true
 serde_repr.workspace = true
 serde.workspace = true
 reqwest = { version = "0.11.14", optional = true, features = [
-    "native-tls-vendored",
+  "native-tls-vendored",
 ] }
 flowy-sqlite = { workspace = true, optional = true }
 r2d2 = { version = "0.8", optional = true }
 url = { version = "2.2", optional = true }
+collab = { workspace = true }
 collab-database = { workspace = true, optional = true }
 collab-document = { workspace = true, optional = true }
 collab-plugins = { workspace = true, optional = true }
 collab-folder = { workspace = true, optional = true }
 client-api = { workspace = true, optional = true }
-tantivy = { version = "0.21.1", optional = true }
-
+tantivy = { workspace = true, optional = true }
+uuid.workspace = true
 
 [features]
+default = ["impl_from_dispatch_error", "impl_from_serde", "impl_from_reqwest", "impl_from_sqlite"]
 impl_from_dispatch_error = ["lib-dispatch"]
 impl_from_serde = []
 impl_from_reqwest = ["reqwest"]
 impl_from_collab_persistence = ["collab-plugins"]
 impl_from_collab_document = [
-    "collab-document",
-    "impl_from_reqwest",
-    "collab-plugins",
+  "collab-document",
+  "impl_from_reqwest",
+  "collab-plugins",
 ]
 impl_from_collab_folder = ["collab-folder"]
 impl_from_collab_database = ["collab-database"]
@@ -53,8 +55,6 @@ impl_from_tantivy = ["tantivy"]
 impl_from_sqlite = ["flowy-sqlite", "r2d2"]
 impl_from_appflowy_cloud = ["client-api"]
 dart = ["flowy-codegen/dart"]
-tauri_ts = ["flowy-codegen/ts"]
-web_ts = ["flowy-codegen/ts"]
 
 [build-dependencies]
 flowy-codegen = { workspace = true, features = ["proto_gen"] }

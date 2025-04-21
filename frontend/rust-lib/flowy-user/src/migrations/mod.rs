@@ -1,5 +1,8 @@
 use flowy_user_pub::session::Session;
+use std::sync::Arc;
 
+pub mod anon_user_workspace;
+pub mod doc_key_with_workspace;
 pub mod document_empty_content;
 pub mod migration;
 pub mod session_migration;
@@ -9,5 +12,5 @@ pub mod workspace_trash_v1;
 
 #[derive(Clone, Debug)]
 pub struct AnonUser {
-  pub session: Session,
+  pub session: Arc<Session>,
 }

@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use collab_folder::Folder;
 use collab_plugins::local_storage::kv::{KVTransactionDB, PersistenceError};
+use diesel::SqliteConnection;
 use semver::Version;
 use tracing::instrument;
 
 use collab_integrate::{CollabKVAction, CollabKVDB};
 use flowy_error::FlowyResult;
-use flowy_user_pub::entities::Authenticator;
+use flowy_user_pub::entities::AuthType;
 
 use crate::migrations::migration::UserDataMigration;
 use crate::migrations::util::load_collab;
@@ -21,8 +22,15 @@ impl UserDataMigration for WorkspaceTrashMapToSectionMigration {
     "workspace_trash_map_to_section_migration"
   }
 
-  fn applies_to_version(&self, _app_version: &Version) -> bool {
-    true
+  fn run_when(
+    &self,
+    first_installed_version: &Option<Version>,
+    _current_version: &Version,
+  ) -> bool {
+    match first_installed_version {
+      None => true,
+      Some(version) => version < &Version::new(0, 4, 0),
+    }
   }
 
   #[instrument(name = "WorkspaceTrashMapToSectionMigration", skip_all, err)]
@@ -30,11 +38,17 @@ impl UserDataMigration for WorkspaceTrashMapToSectionMigration {
     &self,
     session: &Session,
     collab_db: &Arc<CollabKVDB>,
-    _authenticator: &Authenticator,
+    _authenticator: &AuthType,
+    _db: &mut SqliteConnection,
   ) -> FlowyResult<()> {
     collab_db.with_write_txn(|write_txn| {
-      if let Ok(collab) = load_collab(session.user_id, write_txn, &session.user_workspace.id) {
-        let folder = Folder::open(session.user_id, collab, None)
+      if let Ok(collab) = load_collab(
+        session.user_id,
+        write_txn,
+        &session.user_workspace.id,
+        &session.user_workspace.id,
+      ) {
+        let mut folder = Folder::open(session.user_id, collab, None)
           .map_err(|err| PersistenceError::Internal(err.into()))?;
         let trash_ids = folder
           .get_trash_v1()
@@ -47,13 +61,14 @@ impl UserDataMigration for WorkspaceTrashMapToSectionMigration {
         }
 
         let encode = folder
-          .encode_collab_v1()
+          .encode_collab()
           .map_err(|err| PersistenceError::Internal(err.into()))?;
-        write_txn.flush_doc_with(
+        write_txn.flush_doc(
           session.user_id,
           &session.user_workspace.id,
-          &encode.doc_state,
-          &encode.state_vector,
+          &session.user_workspace.id,
+          encode.state_vector.to_vec(),
+          encode.doc_state.to_vec(),
         )?;
       }
       Ok(())

@@ -8,11 +8,10 @@ import 'package:appflowy/user/presentation/helpers/helpers.dart';
 import 'package:appflowy/user/presentation/router.dart';
 import 'package:appflowy/user/presentation/screens/screens.dart';
 import 'package:appflowy_backend/dispatch/dispatch.dart';
-import 'package:appflowy_backend/log.dart';
-import 'package:appflowy_editor/appflowy_editor.dart' hide Log;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class SplashScreen extends StatelessWidget {
   /// Root Page of the app.
@@ -61,38 +60,21 @@ class SplashScreen extends StatelessWidget {
     BuildContext context,
     Authenticated authenticated,
   ) async {
-    final userProfile = authenticated.userProfile;
-
-    /// After a user is authenticated, this function checks if encryption is required.
-    final result = await UserEventCheckEncryptionSign().send();
-    await result.fold(
-      (check) async {
-        /// If encryption is needed, the user is navigated to the encryption screen.
-        /// Otherwise, it fetches the current workspace for the user and navigates them
-        if (check.requireSecret) {
-          getIt<AuthRouter>().pushEncryptionScreen(context, userProfile);
-        } else {
-          final result = await FolderEventGetCurrentWorkspaceSetting().send();
-          result.fold(
-            (workspaceSetting) {
-              // After login, replace Splash screen by corresponding home screen
-              getIt<SplashRouter>().goHomeScreen(
-                context,
-              );
-            },
-            (error) => handleOpenWorkspaceError(context, error),
-          );
-        }
+    final result = await FolderEventGetCurrentWorkspaceSetting().send();
+    result.fold(
+      (workspaceSetting) {
+        // After login, replace Splash screen by corresponding home screen
+        getIt<SplashRouter>().goHomeScreen(
+          context,
+        );
       },
-      (err) {
-        Log.error(err);
-      },
+      (error) => handleOpenWorkspaceError(context, error),
     );
   }
 
   void _handleUnauthenticated(BuildContext context, Unauthenticated result) {
     // replace Splash screen as root page
-    if (isAuthEnabled || PlatformExtension.isMobile) {
+    if (isAuthEnabled || UniversalPlatform.isMobile) {
       context.go(SignInScreen.routeName);
     } else {
       // if the env is not configured, we will skip to the 'skip login screen'.
@@ -114,11 +96,8 @@ class Body extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       alignment: Alignment.center,
-      child: PlatformExtension.isMobile
-          ? const FlowySvg(
-              FlowySvgs.flowy_logo_xl,
-              blendMode: null,
-            )
+      child: UniversalPlatform.isMobile
+          ? const FlowySvg(FlowySvgs.app_logo_xl, blendMode: null)
           : const _DesktopSplashBody(),
     );
   }

@@ -1,7 +1,8 @@
-import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy/plugins/document/presentation/editor_plugins/base/string_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_emoji_mart/flutter_emoji_mart.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class FlowyEmojiHeader extends StatelessWidget {
   const FlowyEmojiHeader({
@@ -13,12 +14,17 @@ class FlowyEmojiHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (PlatformExtension.isDesktopOrWeb) {
+    if (UniversalPlatform.isDesktop) {
       return Container(
         height: 22,
-        padding: const EdgeInsets.symmetric(horizontal: 8.0),
         color: Theme.of(context).cardColor,
-        child: FlowyText.regular(category.id),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 4.0),
+          child: FlowyText.regular(
+            category.id.capitalize(),
+            color: Theme.of(context).hintColor,
+          ),
+        ),
       );
     } else {
       return Column(

@@ -1,5 +1,5 @@
 import 'package:appflowy/workspace/application/settings/settings_dialog_bloc.dart';
-import 'package:flutter/material.dart';
+import 'package:appflowy/workspace/presentation/widgets/toggle/toggle.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -8,8 +8,8 @@ import '../../shared/util.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  group('board add row test', () {
-    testWidgets('Add card from header', (tester) async {
+  group('notification test', () {
+    testWidgets('enable notification', (tester) async {
       await tester.initializeAppFlowy();
       await tester.tapAnonymousSignInButton();
 
@@ -17,25 +17,25 @@ void main() {
       await tester.openSettingsPage(SettingsPage.notifications);
       await tester.pumpAndSettle();
 
-      final switchFinder = find.byType(Switch);
+      final toggleFinder = find.byType(Toggle).first;
 
       // Defaults to enabled
-      Switch switchWidget = tester.widget(switchFinder);
-      expect(switchWidget.value, true);
+      Toggle toggleWidget = tester.widget(toggleFinder);
+      expect(toggleWidget.value, true);
 
       // Disable
-      await tester.tap(switchFinder);
+      await tester.tap(toggleFinder);
       await tester.pumpAndSettle();
 
-      switchWidget = tester.widget(switchFinder);
-      expect(switchWidget.value, false);
+      toggleWidget = tester.widget(toggleFinder);
+      expect(toggleWidget.value, false);
 
       // Enable again
-      await tester.tap(switchFinder);
+      await tester.tap(toggleFinder);
       await tester.pumpAndSettle();
 
-      switchWidget = tester.widget(switchFinder);
-      expect(switchWidget.value, true);
+      toggleWidget = tester.widget(toggleFinder);
+      expect(toggleWidget.value, true);
     });
   });
 }

@@ -8,7 +8,7 @@ use tokio::sync::oneshot::channel;
 
 use flowy_document_pub::cloud::{DocumentCloudService, DocumentSnapshot};
 use flowy_error::FlowyError;
-use lib_dispatch::prelude::af_spawn;
+
 use lib_infra::future::FutureResult;
 
 use crate::supabase::api::request::{get_snapshots_from_server, FetchObjectUpdateAction};
@@ -37,7 +37,7 @@ where
     let try_get_postgrest = self.server.try_get_weak_postgrest();
     let document_id = document_id.to_string();
     let (tx, rx) = channel();
-    af_spawn(async move {
+    tokio::spawn(async move {
       tx.send(
         async move {
           let postgrest = try_get_postgrest?;
@@ -87,14 +87,14 @@ where
     let try_get_postgrest = self.server.try_get_weak_postgrest();
     let document_id = document_id.to_string();
     let (tx, rx) = channel();
-    af_spawn(async move {
+    tokio::spawn(async move {
       tx.send(
         async move {
           let postgrest = try_get_postgrest?;
           let action =
             FetchObjectUpdateAction::new(document_id.clone(), CollabType::Document, postgrest);
           let doc_state = action.run_with_fix_interval(5, 10).await?;
-          let document = Document::from_doc_state(
+          let document = Document::open_with_options(
             CollabOrigin::Empty,
             DataSource::DocStateV1(doc_state),
             &document_id,

@@ -1,14 +1,14 @@
 import 'package:appflowy/generated/locale_keys.g.dart';
-import 'package:appflowy/plugins/base/icon/icon_picker.dart';
-import 'package:appflowy/workspace/presentation/home/menu/sidebar/sidebar_workspace.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/workspace/_sidebar_workspace_actions.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/workspace/_sidebar_workspace_icon.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/workspace/_sidebar_workspace_menu.dart';
+import 'package:appflowy/workspace/presentation/home/menu/sidebar/workspace/sidebar_workspace.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'base.dart';
+import 'util.dart';
 
 extension AppFlowyWorkspace on WidgetTester {
   /// Open workspace menu
@@ -36,12 +36,23 @@ extension AppFlowyWorkspace on WidgetTester {
       matching: find.byType(WorkspaceMoreActionList),
     );
     expect(moreButton, findsOneWidget);
-    await tapButton(moreButton);
-    await tapButton(find.findTextInFlowyText(LocaleKeys.button_rename.tr()));
-    final input = find.byType(TextFormField);
-    expect(input, findsOneWidget);
-    await enterText(input, name);
-    await tapButton(find.text(LocaleKeys.button_ok.tr()));
+    await hoverOnWidget(
+      moreButton,
+      onHover: () async {
+        await tapButton(moreButton);
+        // wait for the menu to open
+        final renameButton = find.findTextInFlowyText(
+          LocaleKeys.button_rename.tr(),
+        );
+        await pumpUntilFound(renameButton);
+        expect(renameButton, findsOneWidget);
+        await tapButton(renameButton);
+        final input = find.byType(TextFormField);
+        expect(input, findsOneWidget);
+        await enterText(input, name);
+        await tapButton(find.text(LocaleKeys.button_ok.tr()));
+      },
+    );
   }
 
   Future<void> changeWorkspaceIcon(String icon) async {
@@ -51,7 +62,7 @@ extension AppFlowyWorkspace on WidgetTester {
     );
     expect(iconButton, findsOneWidget);
     await tapButton(iconButton);
-    final iconPicker = find.byType(FlowyIconPicker);
+    final iconPicker = find.byType(FlowyIconEmojiPicker);
     expect(iconPicker, findsOneWidget);
     await tapButton(find.findTextInFlowyText(icon));
   }

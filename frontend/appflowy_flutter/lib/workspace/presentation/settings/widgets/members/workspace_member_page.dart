@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-
+import 'package:appflowy/core/helpers/url_launcher.dart';
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/shared/af_role_pb_extension.dart';
@@ -12,18 +11,22 @@ import 'package:appflowy/workspace/presentation/widgets/pop_up_action.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/code.pbenum.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
-import 'package:appflowy_popover/appflowy_popover.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
-import 'package:flowy_infra_ui/widget/rounded_button.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:string_validator/string_validator.dart';
 
 class WorkspaceMembersPage extends StatelessWidget {
-  const WorkspaceMembersPage({super.key, required this.userProfile});
+  const WorkspaceMembersPage({
+    super.key,
+    required this.userProfile,
+    required this.workspaceId,
+  });
 
   final UserProfilePB userProfile;
+  final String workspaceId;
 
   @override
   Widget build(BuildContext context) {
@@ -35,10 +38,16 @@ class WorkspaceMembersPage extends StatelessWidget {
         builder: (context, state) {
           return SettingsBody(
             title: LocaleKeys.settings_appearance_members_title.tr(),
+            autoSeparate: false,
             children: [
-              if (state.myRole.canInvite) const _InviteMember(),
-              if (state.myRole.canInvite && state.members.isNotEmpty)
+              if (state.actionResult != null) ...[
+                _showMemberLimitWarning(context, state),
+                const VSpace(16),
+              ],
+              if (state.myRole.canInvite) ...[
+                const _InviteMember(),
                 const SettingsCategorySpacer(),
+              ],
               if (state.members.isNotEmpty)
                 _MemberList(
                   members: state.members,
@@ -50,6 +59,105 @@ class WorkspaceMembersPage extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Widget _showMemberLimitWarning(
+    BuildContext context,
+    WorkspaceMemberState state,
+  ) {
+    // We promise that state.actionResult != null before calling
+    // this method
+    final actionResult = state.actionResult!.result;
+    final actionType = state.actionResult!.actionType;
+
+    if (actionType == WorkspaceMemberActionType.invite &&
+        actionResult.isFailure) {
+      final error = actionResult.getFailure().code;
+      if (error == ErrorCode.WorkspaceMemberLimitExceeded) {
+        return Row(
+          children: [
+            const FlowySvg(
+              FlowySvgs.warning_s,
+              blendMode: BlendMode.dst,
+              size: Size.square(20),
+            ),
+            const HSpace(12),
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    if (state.subscriptionInfo?.plan ==
+                        WorkspacePlanPB.ProPlan) ...[
+                      TextSpan(
+                        text: LocaleKeys
+                            .settings_appearance_members_memberLimitExceededPro
+                            .tr(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: AFThemeExtension.of(context).strongText,
+                        ),
+                      ),
+                      WidgetSpan(
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            // Hardcoded support email, in the future we might
+                            // want to add this to an environment variable
+                            onTap: () async => afLaunchUrlString(
+                              'mailto:support@appflowy.io',
+                            ),
+                            child: FlowyText(
+                              LocaleKeys
+                                  .settings_appearance_members_memberLimitExceededProContact
+                                  .tr(),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      TextSpan(
+                        text: LocaleKeys
+                            .settings_appearance_members_memberLimitExceeded
+                            .tr(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: AFThemeExtension.of(context).strongText,
+                        ),
+                      ),
+                      WidgetSpan(
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () => context
+                                .read<WorkspaceMemberBloc>()
+                                .add(const WorkspaceMemberEvent.upgradePlan()),
+                            child: FlowyText(
+                              LocaleKeys
+                                  .settings_appearance_members_memberLimitExceededUpgrade
+                                  .tr(),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+    }
+
+    return const SizedBox.shrink();
   }
 
   void _showResultDialog(BuildContext context, WorkspaceMemberState state) {
@@ -92,22 +200,21 @@ class WorkspaceMembersPage extends StatelessWidget {
         (f) {
           Log.error('invite workspace member failed: $f');
           final message = f.code == ErrorCode.WorkspaceMemberLimitExceeded
-              ? LocaleKeys.settings_appearance_members_memberLimitExceeded.tr()
+              ? LocaleKeys.settings_appearance_members_inviteFailedMemberLimit
+                  .tr()
               : LocaleKeys.settings_appearance_members_failedToInviteMember
                   .tr();
-          showDialog(
+          showConfirmDialog(
             context: context,
-            builder: (context) => NavigatorOkCancelDialog(message: message),
+            title: LocaleKeys
+                .settings_appearance_members_inviteFailedDialogTitle
+                .tr(),
+            description: message,
+            confirmLabel: LocaleKeys.button_ok.tr(),
           );
         },
       );
     }
-
-    result.onFailure((f) {
-      Log.error(
-        '[Member] Failed to perform ${actionType.toString()} action: $f',
-      );
-    });
   }
 }
 
@@ -146,6 +253,8 @@ class _InviteMemberState extends State<_InviteMember> {
                   height: 48.0,
                 ),
                 child: FlowyTextField(
+                  hintText:
+                      LocaleKeys.settings_appearance_members_inviteHint.tr(),
                   controller: _emailController,
                   onEditingComplete: _inviteMember,
                 ),
@@ -155,11 +264,13 @@ class _InviteMemberState extends State<_InviteMember> {
             SizedBox(
               height: 48.0,
               child: IntrinsicWidth(
-                child: RoundedTextButton(
-                  title: LocaleKeys.settings_appearance_members_sendInvite.tr(),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  onPressed: _inviteMember,
+                child: PrimaryRoundedButton(
+                  text: LocaleKeys.settings_appearance_members_sendInvite.tr(),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  onTap: _inviteMember,
                 ),
               ),
             ),

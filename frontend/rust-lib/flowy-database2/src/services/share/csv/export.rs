@@ -1,13 +1,14 @@
 use collab_database::database::Database;
 use collab_database::fields::Field;
 use collab_database::rows::Cell;
+use collab_database::template::timestamp_parse::TimestampCellData;
+use futures::StreamExt;
 use indexmap::IndexMap;
 
 use flowy_error::{FlowyError, FlowyResult};
 
 use crate::entities::FieldType;
 use crate::services::cell::stringify_cell;
-use crate::services::field::{TimestampCellData, TimestampCellDataWrapper};
 
 #[derive(Debug, Clone, Copy)]
 pub enum CSVFormat {
@@ -21,10 +22,16 @@ pub enum CSVFormat {
 
 pub struct CSVExport;
 impl CSVExport {
-  pub fn export_database(&self, database: &Database, style: CSVFormat) -> FlowyResult<String> {
+  pub async fn export_database(
+    &self,
+    database: &Database,
+    style: CSVFormat,
+  ) -> FlowyResult<String> {
     let mut wtr = csv::Writer::from_writer(vec![]);
-    let inline_view_id = database.get_inline_view_id();
-    let fields = database.get_fields_in_view(&inline_view_id, None);
+    let view_id = database
+      .get_first_database_view_id()
+      .ok_or_else(|| FlowyError::internal().with_context("failed to get first database view"))?;
+    let fields = database.get_fields_in_view(&view_id, None);
 
     // Write fields
     let field_records = fields
@@ -43,7 +50,12 @@ impl CSVExport {
     fields.into_iter().for_each(|field| {
       field_by_field_id.insert(field.id.clone(), field);
     });
-    let rows = database.get_rows_for_view(&inline_view_id);
+    let rows = database
+      .get_rows_for_view(&view_id, 20, None)
+      .await
+      .filter_map(|result| async { result.ok() })
+      .collect::<Vec<_>>()
+      .await;
 
     let stringify = |cell: &Cell, field: &Field, style: CSVFormat| match style {
       CSVFormat::Original => stringify_cell(cell, field),
@@ -62,7 +74,7 @@ impl CSVExport {
               } else {
                 TimestampCellData::new(row.modified_at)
               };
-              let cell = Cell::from(TimestampCellDataWrapper::from((field_type, cell_data)));
+              let cell = cell_data.to_cell(field.field_type);
               stringify(&cell, field, style)
             },
             _ => match row.cells.get(field_id) {

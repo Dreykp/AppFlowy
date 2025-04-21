@@ -170,14 +170,14 @@
   "questionBubble": {
     "shortcuts": "کورتە ڕێگاکان",
     "whatsNew": "نوێترین",
-    "help": "پشتیوانی و یارمەتی",
     "markdown": "Markdown",
     "debug": {
       "name": "زانیاری دیباگ",
       "success": "زانیارییەکانی دیباگ کۆپی کراون بۆ کلیپبۆرد!",
       "fail": "ناتوانرێت زانیارییەکانی دیباگ کۆپی بکات بۆ کلیپبۆرد"
     },
-    "feedback": "فیدباک"
+    "feedback": "فیدباک",
+    "help": "پشتیوانی و یارمەتی"
   },
   "menuAppHeader": {
     "moreButtonToolTip": "سڕینەوە، گۆڕینی ناو، و زۆر شتی تر...",
@@ -331,11 +331,6 @@
       "cloudServerType": "ڕاژەکاری کڵاود",
       "cloudServerTypeTip": "تکایە ئاگاداربە کە لەوانەیە دوای گۆڕینی ڕاژەکاری کڵاودکە لە ئەکاونتی ئێستات دەربچێت",
       "cloudLocal": "خۆماڵی",
-      "cloudSupabase": "Supabase",
-      "cloudSupabaseUrl": "Supabase URL",
-      "cloudSupabaseUrlCanNotBeEmpty": "url ی supabase ناتوانێت بەتاڵ بێت",
-      "cloudSupabaseAnonKey": "کلیلی شاراوەی Supabase",
-      "cloudSupabaseAnonKeyCanNotBeEmpty": "کلیلی anon ناتوانێت بەتاڵ بێت",
       "cloudAppFlowy": "ئەپفلۆوی کلاود بێتا",
       "cloudAppFlowySelfHost": "ئەپفلۆوی کلاود بە هۆستی خۆیی",
       "appFlowyCloudUrlCanNotBeEmpty": "url ی هەور ناتوانێت بەتاڵ بێت",
@@ -480,20 +475,9 @@
       "email": "ئیمەیڵ",
       "tooltipSelectIcon": "هەڵبژاەدنی وێنۆچكه‌",
       "selectAnIcon": "هەڵبژاردنی وێنۆچكه‌",
-      "pleaseInputYourOpenAIKey": "تکایە کلیلی OpenAI ـەکەت بنووسە",
-      "pleaseInputYourStabilityAIKey": "تکایە جێگیری کلیلی  AI ـەکەت بنووسە",
-      "clickToLogout": "بۆ دەرچوون لە بەکارهێنەری ئێستا کلیک بکە"
-    },
-    "shortcuts": {
-      "shortcutsLabel": "کورتە ڕێگاکان",
-      "command": "فەرمان",
-      "keyBinding": "کورتکراوەکانی تەختەکلیل",
-      "addNewCommand": "زیاد کردنی فەرمانێکی نوێ",
-      "updateShortcutStep": "تێکەڵەی کلیلی دڵخواز داگرە و ENTER داگرە",
-      "shortcutIsAlreadyUsed": "ئەم کورتە ڕێگایە پێشتر بۆ: {conflict} بەکارهاتووە.",
-      "resetToDefault": "گەڕاندنەوە بۆ کلیلەکانی بنه‌ڕه‌ت",
-      "couldNotLoadErrorMsg": "کورتە ڕێگاکان نەتوانرا باربکرێن، تکایە دووبارە هەوڵبدەرەوە",
-      "couldNotSaveErrorMsg": "کورتە ڕێگاکان نەتوانرا پاشەکەوت بکرێن، تکایە دووبارە هەوڵبدەرەوە"
+      "pleaseInputYourOpenAIKey": "تکایە کلیلی AI ـەکەت بنووسە",
+      "clickToLogout": "بۆ دەرچوون لە بەکارهێنەری ئێستا کلیک بکە",
+      "pleaseInputYourStabilityAIKey": "تکایە جێگیری کلیلی  AI ـەکەت بنووسە"
     },
     "mobile": {
       "personalInfo": "زانیاری کەسی",
@@ -511,6 +495,17 @@
       "selectLayout": "نەخشە هەڵبژێرە",
       "selectStartingDay": "ڕۆژی دەستپێکردنەکەت هەڵبژێرە",
       "version": "وەشان"
+    },
+    "shortcuts": {
+      "shortcutsLabel": "کورتە ڕێگاکان",
+      "command": "فەرمان",
+      "keyBinding": "کورتکراوەکانی تەختەکلیل",
+      "addNewCommand": "زیاد کردنی فەرمانێکی نوێ",
+      "updateShortcutStep": "تێکەڵەی کلیلی دڵخواز داگرە و ENTER داگرە",
+      "shortcutIsAlreadyUsed": "ئەم کورتە ڕێگایە پێشتر بۆ: {conflict} بەکارهاتووە.",
+      "resetToDefault": "گەڕاندنەوە بۆ کلیلەکانی بنه‌ڕه‌ت",
+      "couldNotLoadErrorMsg": "کورتە ڕێگاکان نەتوانرا باربکرێن، تکایە دووبارە هەوڵبدەرەوە",
+      "couldNotSaveErrorMsg": "کورتە ڕێگاکان نەتوانرا پاشەکەوت بکرێن، تکایە دووبارە هەوڵبدەرەوە"
     }
   },
   "grid": {
@@ -734,23 +729,22 @@
       "referencedGrid": "تۆڕی ئاماژەپێکراو",
       "referencedCalendar": "ساڵنامەی ئاماژەپێکراو",
       "referencedDocument": "بەڵگەنامەی ئاماژەپێکراو",
-      "autoGeneratorMenuItemName": "OpenAI نووسەری",
+      "autoGeneratorMenuItemName": "AI نووسەری",
       "autoGeneratorTitleName": "داوا لە AI بکە هەر شتێک بنووسێت...",
       "autoGeneratorLearnMore": "زیاتر زانین",
       "autoGeneratorGenerate": "بنووسە",
-      "autoGeneratorHintText": "لە OpenAI پرسیار بکە...",
-      "autoGeneratorCantGetOpenAIKey": "نەتوانرا کلیلی OpenAI بەدەست بهێنرێت",
+      "autoGeneratorHintText": "لە AI پرسیار بکە...",
+      "autoGeneratorCantGetOpenAIKey": "نەتوانرا کلیلی AI بەدەست بهێنرێت",
       "autoGeneratorRewrite": "دووبارە نووسینەوە",
       "smartEdit": "یاریدەدەری زیرەک",
-      "openAI": "OpenAI ژیری دەستکرد",
       "smartEditFixSpelling": "ڕاستکردنەوەی نووسین",
       "warning": "⚠️ وەڵامەکانی AI دەتوانن هەڵە یان چەواشەکارانە بن",
       "smartEditSummarize": "کورتەنووسی",
       "smartEditImproveWriting": "پێشخستن نوووسین",
       "smartEditMakeLonger": "درێژتری بکەرەوە",
-      "smartEditCouldNotFetchResult": "هیچ ئەنجامێک لە OpenAI وەرنەگیرا",
-      "smartEditCouldNotFetchKey": "نەتوانرا کلیلی OpenAI بهێنێتە ئاراوە",
-      "smartEditDisabled": "لە ڕێکخستنەکاندا پەیوەندی بە OpenAI بکە",
+      "smartEditCouldNotFetchResult": "هیچ ئەنجامێک لە AI وەرنەگیرا",
+      "smartEditCouldNotFetchKey": "نەتوانرا کلیلی AI بهێنێتە ئاراوە",
+      "smartEditDisabled": "لە ڕێکخستنەکاندا پەیوەندی بە AI بکە",
       "discardResponse": "ئایا دەتەوێت وەڵامەکانی AI بسڕیتەوە؟",
       "createInlineMathEquation": "درووست کردنی هاوکێشە",
       "fonts": "فۆنتەکان",
@@ -805,7 +799,8 @@
       },
       "outline": {
         "addHeadingToCreateOutline": "بۆ دروستکردنی خشتەی ناوەڕۆک سەردێڕەکان داخڵ بکە"
-      }
+      },
+      "openAI": "AI ژیری دەستکرد"
     },
     "textBlock": {
       "placeholder": "بۆ فەرمانەکان '/' بنووسە"

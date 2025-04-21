@@ -1,28 +1,52 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:appflowy/workspace/presentation/home/menu/menu_shared_state.dart';
-import 'package:flutter/material.dart';
-
+import 'package:appflowy/mobile/presentation/chat/mobile_chat_screen.dart';
 import 'package:appflowy/mobile/presentation/database/board/mobile_board_screen.dart';
 import 'package:appflowy/mobile/presentation/database/mobile_calendar_screen.dart';
 import 'package:appflowy/mobile/presentation/database/mobile_grid_screen.dart';
 import 'package:appflowy/mobile/presentation/presentation.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/workspace/application/recent/cached_recent_service.dart';
+import 'package:appflowy/workspace/presentation/home/menu/menu_shared_state.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 extension MobileRouter on BuildContext {
-  Future<void> pushView(ViewPB view, [Map<String, dynamic>? arguments]) async {
-    await push(
-      Uri(
-        path: view.routeName,
-        queryParameters: view.queryParameters(arguments),
-      ).toString(),
-    ).then((value) {
-      getIt<MenuSharedState>().latestOpenView = view;
-      getIt<CachedRecentService>().updateRecentViews([view.id], true);
-    });
+  Future<void> pushView(
+    ViewPB view, {
+    Map<String, dynamic>? arguments,
+    bool addInRecent = true,
+    bool showMoreButton = true,
+    String? fixedTitle,
+    String? blockId,
+    List<String>? tabs,
+  }) async {
+    // set the current view before pushing the new view
+    getIt<MenuSharedState>().latestOpenView = view;
+    unawaited(getIt<CachedRecentService>().updateRecentViews([view.id], true));
+    final queryParameters = view.queryParameters(arguments);
+
+    if (view.layout == ViewLayoutPB.Document) {
+      queryParameters[MobileDocumentScreen.viewShowMoreButton] =
+          showMoreButton.toString();
+      if (fixedTitle != null) {
+        queryParameters[MobileDocumentScreen.viewFixedTitle] = fixedTitle;
+      }
+      if (blockId != null) {
+        queryParameters[MobileDocumentScreen.viewBlockId] = blockId;
+      }
+    }
+    if (tabs != null) {
+      queryParameters[MobileDocumentScreen.viewSelectTabs] = tabs.join('-');
+    }
+
+    final uri = Uri(
+      path: view.routeName,
+      queryParameters: queryParameters,
+    ).toString();
+    await push(uri);
   }
 }
 
@@ -37,6 +61,9 @@ extension on ViewPB {
         return MobileCalendarScreen.routeName;
       case ViewLayoutPB.Board:
         return MobileBoardScreen.routeName;
+      case ViewLayoutPB.Chat:
+        return MobileChatScreen.routeName;
+
       default:
         throw UnimplementedError('routeName for $this is not implemented');
     }
@@ -64,6 +91,11 @@ extension on ViewPB {
         return {
           MobileBoardScreen.viewId: id,
           MobileBoardScreen.viewTitle: name,
+        };
+      case ViewLayoutPB.Chat:
+        return {
+          MobileChatScreen.viewId: id,
+          MobileChatScreen.viewTitle: name,
         };
       default:
         throw UnimplementedError(

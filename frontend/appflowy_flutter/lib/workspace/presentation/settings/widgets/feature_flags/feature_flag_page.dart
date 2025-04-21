@@ -50,7 +50,10 @@ class _FeatureFlagItemState extends State<_FeatureFlagItem> {
       subtitle: FlowyText.small(widget.featureFlag.description, maxLines: 3),
       trailing: Switch.adaptive(
         value: widget.featureFlag.isOn,
-        onChanged: (value) => setState(() => widget.featureFlag.update(value)),
+        onChanged: (value) async {
+          await widget.featureFlag.update(value);
+          setState(() {});
+        },
       ),
     );
   }

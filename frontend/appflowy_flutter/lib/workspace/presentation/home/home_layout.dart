@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:math';
 
 import 'package:appflowy/workspace/application/home/home_setting_bloc.dart';
 import 'package:flowy_infra/size.dart';
@@ -13,8 +14,11 @@ class HomeLayout {
   HomeLayout(BuildContext context) {
     final homeSetting = context.read<HomeSettingBloc>().state;
     showEditPanel = homeSetting.panelContext != null;
-    menuWidth = Sizes.sideBarWidth;
-    menuWidth += homeSetting.resizeOffset;
+
+    menuWidth = max(
+      HomeSizes.minimumSidebarWidth + homeSetting.resizeOffset,
+      HomeSizes.minimumSidebarWidth,
+    );
 
     final screenWidthPx = context.widthPx;
     context

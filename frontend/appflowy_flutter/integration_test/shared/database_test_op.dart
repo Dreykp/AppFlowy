@@ -1,12 +1,9 @@
 import 'dart:io';
 
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/database/application/calculations/calculation_type_ext.dart';
+import 'package:appflowy/plugins/database/application/field/filter_entities.dart';
 import 'package:appflowy/plugins/database/board/presentation/board_page.dart';
 import 'package:appflowy/plugins/database/board/presentation/widgets/board_column_header.dart';
 import 'package:appflowy/plugins/database/calendar/application/calendar_bloc.dart';
@@ -20,13 +17,15 @@ import 'package:appflowy/plugins/database/grid/presentation/widgets/calculations
 import 'package:appflowy/plugins/database/grid/presentation/widgets/calculations/calculation_type_item.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/common/type_option_separator.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/checkbox.dart';
-import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/checklist/checklist.dart';
+import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/checklist.dart';
+import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/choicechip.dart';
+import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/date.dart';
+import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/select_option/condition_list.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/select_option/option_list.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/select_option/select_option.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/choicechip/text.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/create_filter_list.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/disclosure_button.dart';
-import 'package:appflowy/plugins/database/grid/presentation/widgets/filter/filter_menu_item.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/footer/grid_footer.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/header/desktop_field_cell.dart';
 import 'package:appflowy/plugins/database/grid/presentation/widgets/row/row.dart';
@@ -38,9 +37,11 @@ import 'package:appflowy/plugins/database/grid/presentation/widgets/toolbar/filt
 import 'package:appflowy/plugins/database/grid/presentation/widgets/toolbar/sort_button.dart';
 import 'package:appflowy/plugins/database/tab_bar/desktop/tab_bar_add_button.dart';
 import 'package:appflowy/plugins/database/tab_bar/desktop/tab_bar_header.dart';
+import 'package:appflowy/plugins/database/widgets/cell/desktop_row_detail/desktop_row_detail_checklist_cell.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/checkbox.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/checklist.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/date.dart';
+import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/media.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/number.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/select_option.dart';
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/text.dart';
@@ -48,8 +49,9 @@ import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/ti
 import 'package:appflowy/plugins/database/widgets/cell/editable_cell_skeleton/url.dart';
 import 'package:appflowy/plugins/database/widgets/cell_editor/checklist_cell_editor.dart';
 import 'package:appflowy/plugins/database/widgets/cell_editor/checklist_progress_bar.dart';
-import 'package:appflowy/plugins/database/widgets/cell_editor/date_editor.dart';
+import 'package:appflowy/plugins/database/widgets/cell_editor/date_cell_editor.dart';
 import 'package:appflowy/plugins/database/widgets/cell_editor/extension.dart';
+import 'package:appflowy/plugins/database/widgets/cell_editor/media_cell_editor.dart';
 import 'package:appflowy/plugins/database/widgets/cell_editor/select_option_cell_editor.dart';
 import 'package:appflowy/plugins/database/widgets/cell_editor/select_option_text_field.dart';
 import 'package:appflowy/plugins/database/widgets/database_layout_ext.dart';
@@ -68,11 +70,12 @@ import 'package:appflowy/plugins/database/widgets/setting/database_setting_actio
 import 'package:appflowy/plugins/database/widgets/setting/database_settings_list.dart';
 import 'package:appflowy/plugins/database/widgets/setting/setting_button.dart';
 import 'package:appflowy/plugins/database/widgets/setting/setting_property_list.dart';
+import 'package:appflowy/shared/icon_emoji_picker/flowy_icon_emoji_picker.dart';
+import 'package:appflowy/shared/icon_emoji_picker/icon_picker.dart';
 import 'package:appflowy/util/field_type_extension.dart';
 import 'package:appflowy/workspace/presentation/widgets/date_picker/widgets/clear_date_button.dart';
 import 'package:appflowy/workspace/presentation/widgets/date_picker/widgets/date_type_option_button.dart';
 import 'package:appflowy/workspace/presentation/widgets/date_picker/widgets/reminder_selector.dart';
-import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:appflowy/workspace/presentation/widgets/pop_up_action.dart';
 import 'package:appflowy/workspace/presentation/widgets/toggle/toggle.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
@@ -83,6 +86,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flowy_infra_ui/style_widget/text_input.dart';
 import 'package:flowy_infra_ui/widget/buttons/primary_button.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 // Non-exported member of the table_calendar library
@@ -94,8 +100,11 @@ import 'common_operations.dart';
 import 'expectation.dart';
 import 'mock/mock_file_picker.dart';
 
+const v020GridFileName = "v020.afdb";
+const v069GridFileName = "v069.afdb";
+
 extension AppFlowyDatabaseTest on WidgetTester {
-  Future<void> openV020database() async {
+  Future<void> openTestDatabase(String fileName) async {
     final context = await initializeAppFlowy();
     await tapAnonymousSignInButton();
 
@@ -105,37 +114,32 @@ extension AppFlowyDatabaseTest on WidgetTester {
     await tapAddViewButton();
     await tapImportButton();
 
-    final testFileNames = ['v020.afdb'];
-    final paths = <String>[];
-    for (final fileName in testFileNames) {
-      // Don't use the p.join to build the path that used in loadString. It
-      // is not working on windows.
-      final str = await rootBundle
-          .loadString("assets/test/workspaces/database/$fileName");
+    // Don't use the p.join to build the path that used in loadString. It
+    // is not working on windows.
+    final str = await rootBundle
+        .loadString("assets/test/workspaces/database/$fileName");
 
-      // Write the content to the file.
-      final path = p.join(
-        context.applicationDataDirectory,
-        fileName,
-      );
-      paths.add(path);
-      File(path).writeAsStringSync(str);
-    }
+    // Write the content to the file.
+    final path = p.join(
+      context.applicationDataDirectory,
+      fileName,
+    );
+    final pageName = p.basenameWithoutExtension(path);
+    File(path).writeAsStringSync(str);
     // mock get files
     mockPickFilePaths(
-      paths: paths,
+      paths: [path],
     );
     await tapDatabaseRawDataButton();
-    await pumpAndSettle();
-    await openPage('v020', layout: ViewLayoutPB.Grid);
+    await openPage(pageName, layout: ViewLayoutPB.Grid);
   }
 
-  Future<void> hoverOnFirstRowOfGrid() async {
+  Future<void> hoverOnFirstRowOfGrid([Future<void> Function()? onHover]) async {
     final findRow = find.byType(GridRow);
     expect(findRow, findsWidgets);
 
     final firstRow = findRow.first;
-    await hoverOnWidget(firstRow);
+    await hoverOnWidget(firstRow, onHover: onHover);
   }
 
   Future<void> editCell({
@@ -148,6 +152,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
 
     expect(cell, findsOneWidget);
     await enterText(cell, input);
+    await testTextInput.receiveAction(TextInputAction.done);
     await pumpAndSettle();
   }
 
@@ -243,10 +248,10 @@ extension AppFlowyDatabaseTest on WidgetTester {
     }
   }
 
-  Future<void> assertMultiSelectOption({
+  void assertMultiSelectOption({
     required int rowIndex,
     required List<String> contents,
-  }) async {
+  }) {
     final findCell = cellFinder(rowIndex, FieldType.MultiSelect);
     for (final content in contents) {
       if (content.isNotEmpty) {
@@ -407,17 +412,20 @@ extension AppFlowyDatabaseTest on WidgetTester {
   }
 
   Future<void> selectOption({required String name}) async {
-    final option = find.byWidgetPredicate(
-      (widget) => widget is SelectOptionTagCell && widget.option.name == name,
+    final option = find.descendant(
+      of: find.byType(SelectOptionCellEditor),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is SelectOptionTagCell && widget.option.name == name,
+      ),
     );
 
     await tapButton(option);
   }
 
-  Future<void> findSelectOptionWithNameInGrid({
+  void findSelectOptionWithNameInGrid({
     required int rowIndex,
     required String name,
-  }) async {
+  }) {
     final findRow = find.byType(GridRow);
     final option = find.byWidgetPredicate(
       (widget) =>
@@ -429,10 +437,10 @@ extension AppFlowyDatabaseTest on WidgetTester {
     expect(cell, findsOneWidget);
   }
 
-  Future<void> assertNumberOfSelectedOptionsInGrid({
+  void assertNumberOfSelectedOptionsInGrid({
     required int rowIndex,
     required Matcher matcher,
-  }) async {
+  }) {
     final findRow = find.byType(GridRow);
 
     final options = find.byWidgetPredicate(
@@ -474,7 +482,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
     await pumpAndSettle();
     if (enter) {
       await testTextInput.receiveAction(TextInputAction.done);
-      await pumpAndSettle();
+      await pumpAndSettle(const Duration(milliseconds: 500));
     } else {
       await tapButton(
         find.descendant(
@@ -500,6 +508,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
   Future<void> renameChecklistTask({
     required int index,
     required String name,
+    bool enter = true,
   }) async {
     final textField = find
         .descendant(
@@ -509,7 +518,9 @@ extension AppFlowyDatabaseTest on WidgetTester {
         .at(index);
 
     await enterText(textField, name);
-    await testTextInput.receiveAction(TextInputAction.done);
+    if (enter) {
+      await testTextInput.receiveAction(TextInputAction.done);
+    }
     await pumpAndSettle();
   }
 
@@ -527,14 +538,38 @@ extension AppFlowyDatabaseTest on WidgetTester {
   Future<void> deleteChecklistTask({required int index}) async {
     final task = find.byType(ChecklistItem).at(index);
 
-    await startGesture(getCenter(task), kind: PointerDeviceKind.mouse);
-    await pumpAndSettle();
-
-    final button = find.byWidgetPredicate(
-      (widget) => widget is FlowySvg && widget.svg == FlowySvgs.delete_s,
+    await hoverOnWidget(
+      task,
+      onHover: () async {
+        final button = find.byWidgetPredicate(
+          (widget) => widget is FlowySvg && widget.svg == FlowySvgs.delete_s,
+        );
+        await tapButton(button);
+      },
     );
+  }
 
-    await tapButton(button);
+  void assertPhantomChecklistItemAtIndex({required int index}) {
+    final paddings = find.descendant(
+      of: find.descendant(
+        of: find.byType(ChecklistRowDetailCell),
+        matching: find.byType(ReorderableListView),
+      ),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Padding &&
+            (widget.child is ChecklistItem ||
+                widget.child is PhantomChecklistItem),
+      ),
+    );
+    final phantom = widget<Padding>(paddings.at(index)).child!;
+    expect(phantom is PhantomChecklistItem, true);
+  }
+
+  void assertPhantomChecklistItemContent(String content) {
+    final phantom = find.byType(PhantomChecklistItem);
+    final text = find.text(content);
+    expect(find.descendant(of: phantom, matching: text), findsOneWidget);
   }
 
   Future<void> openFirstRowDetailPage() async {
@@ -566,12 +601,25 @@ extension AppFlowyDatabaseTest on WidgetTester {
     final banner = find.byType(RowBanner);
     expect(banner, findsOneWidget);
 
-    await startGesture(getCenter(banner), kind: PointerDeviceKind.mouse);
+    await startGesture(
+      getCenter(banner) + const Offset(0, -10),
+      kind: PointerDeviceKind.mouse,
+    );
     await pumpAndSettle();
   }
 
+  /// Used to open the add cover popover, by pressing on "Add cover"-button.
+  ///
+  /// Should call [hoverRowBanner] first.
+  ///
+  Future<void> tapAddCoverButton() async {
+    await tapButtonWithName(
+      LocaleKeys.document_plugins_cover_addCover.tr(),
+    );
+  }
+
   Future<void> openEmojiPicker() async =>
-      tapButton(find.byType(AddEmojiButton));
+      tapButton(find.text(LocaleKeys.document_plugins_cover_addIcon.tr()));
 
   Future<void> tapDateCellInRowDetailPage() async {
     final findDateCell = find.byType(EditableDateCell);
@@ -627,12 +675,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
       (w) => w is FieldActionCell && w.action == FieldAction.delete,
     );
     await tapButton(deleteButton);
-
-    final confirmButton = find.descendant(
-      of: find.byType(NavigatorAlertDialog),
-      matching: find.byType(PrimaryTextButton),
-    );
-    await tapButton(confirmButton);
+    await tapButtonWithName(LocaleKeys.space_delete.tr());
   }
 
   Future<void> scrollRowDetailByOffset(Offset offset) async {
@@ -672,6 +715,53 @@ extension AppFlowyDatabaseTest on WidgetTester {
     await tapSwitchFieldTypeButton();
     await selectFieldType(type);
     await dismissFieldEditor();
+  }
+
+  Future<void> changeFieldIcon(String icon) async {
+    await tapButton(find.byType(FieldEditIconButton));
+    if (icon.isEmpty) {
+      final button = find.descendant(
+        of: find.byType(FlowyIconEmojiPicker),
+        matching: find.text(
+          LocaleKeys.button_remove.tr(),
+        ),
+      );
+      await tapButton(button);
+    } else {
+      final svgContent = kIconGroups?.findSvgContent(icon);
+      await tapButton(
+        find.byWidgetPredicate(
+          (widget) => widget is FlowySvg && widget.svgString == svgContent,
+        ),
+      );
+    }
+  }
+
+  void assertFieldSvg(String name, FieldType fieldType) {
+    final svgFinder = find.byWidgetPredicate(
+      (widget) => widget is FlowySvg && widget.svg == fieldType.svgData,
+    );
+    final fieldButton = find.byWidgetPredicate(
+      (widget) => widget is FieldCellButton && widget.field.name == name,
+    );
+    expect(
+      find.descendant(of: fieldButton, matching: svgFinder),
+      findsOneWidget,
+    );
+  }
+
+  void assertFieldCustomSvg(String name, String svg) {
+    final svgContent = kIconGroups?.findSvgContent(svg);
+    final svgFinder = find.byWidgetPredicate(
+      (widget) => widget is FlowySvg && widget.svgString == svgContent,
+    );
+    final fieldButton = find.byWidgetPredicate(
+      (widget) => widget is FieldCellButton && widget.field.name == name,
+    );
+    expect(
+      find.descendant(of: fieldButton, matching: svgFinder),
+      findsOneWidget,
+    );
   }
 
   Future<void> changeCalculateAtIndex(int index, CalculationType type) async {
@@ -786,12 +876,12 @@ extension AppFlowyDatabaseTest on WidgetTester {
 
   /// Each field has its own cell, so we can find the corresponding cell by
   /// the field type after create a new field.
-  Future<void> findCellByFieldType(FieldType fieldType) async {
+  void findCellByFieldType(FieldType fieldType) {
     final finder = finderForFieldType(fieldType);
     expect(finder, findsWidgets);
   }
 
-  Future<void> assertNumberOfRowsInGridPage(int num) async {
+  void assertNumberOfRowsInGridPage(int num) {
     expect(
       find.byType(GridRow, skipOffstage: false),
       findsNWidgets(num),
@@ -852,8 +942,38 @@ extension AppFlowyDatabaseTest on WidgetTester {
     await pumpAndSettle(const Duration(milliseconds: 200));
   }
 
+  Future<void> changeFieldWidth(String fieldName, double width) async {
+    final field = find.byWidgetPredicate(
+      (widget) => widget is GridFieldCell && widget.fieldInfo.name == fieldName,
+    );
+    await hoverOnWidget(
+      field,
+      onHover: () async {
+        final dragHandle = find.descendant(
+          of: field,
+          matching: find.byType(DragToExpandLine),
+        );
+        await drag(dragHandle, Offset(width - getSize(field).width, 0));
+        await pumpAndSettle(const Duration(milliseconds: 200));
+      },
+    );
+  }
+
+  double getFieldWidth(String fieldName) {
+    final field = find.byWidgetPredicate(
+      (widget) => widget is GridFieldCell && widget.fieldInfo.name == fieldName,
+    );
+
+    return getSize(field).width;
+  }
+
   Future<void> findDateEditor(dynamic matcher) async {
     final finder = find.byType(DateCellEditor);
+    expect(finder, matcher);
+  }
+
+  Future<void> findMediaCellEditor(dynamic matcher) async {
+    final finder = find.byType(MediaCellEditor);
     expect(finder, matcher);
   }
 
@@ -871,7 +991,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
     await tapButton(find.byType(GridAddRowButton));
   }
 
-  Future<void> tapCreateRowButtonInRowMenuOfGrid() async {
+  Future<void> tapCreateRowButtonAfterHoveringOnGridRow() async {
     await tapButton(find.byType(InsertRowButton));
   }
 
@@ -880,23 +1000,56 @@ extension AppFlowyDatabaseTest on WidgetTester {
   }
 
   /// Should call [tapRowMenuButtonInGrid] first.
+  Future<void> tapCreateRowAboveButtonInRowMenu() async {
+    await tapButtonWithName(LocaleKeys.grid_row_insertRecordAbove.tr());
+  }
+
+  /// Should call [tapRowMenuButtonInGrid] first.
   Future<void> tapDeleteOnRowMenu() async {
     await tapButtonWithName(LocaleKeys.grid_row_delete.tr());
   }
 
+  Future<void> reorderRow(
+    String from,
+    String to,
+  ) async {
+    final fromRow = find.byWidgetPredicate(
+      (widget) => widget is GridRow && widget.rowId == from,
+    );
+    final toRow = find.byWidgetPredicate(
+      (widget) => widget is GridRow && widget.rowId == to,
+    );
+    await hoverOnWidget(
+      fromRow,
+      onHover: () async {
+        final dragElement = find.descendant(
+          of: fromRow,
+          matching: find.byType(ReorderableDragStartListener),
+        );
+        await timedDrag(
+          dragElement,
+          getCenter(toRow) - getCenter(fromRow),
+          const Duration(milliseconds: 200),
+        );
+        await pumpAndSettle();
+      },
+    );
+  }
+
   Future<void> createField(
-    FieldType fieldType,
-    String name, {
+    FieldType fieldType, {
+    String? name,
     ViewLayoutPB layout = ViewLayoutPB.Grid,
   }) async {
     if (layout == ViewLayoutPB.Grid) {
       await scrollToRight(find.byType(GridPage));
     }
     await tapNewPropertyButton();
-    await renameField(name);
+    if (name != null) {
+      await renameField(name);
+    }
     await tapSwitchFieldTypeButton();
     await selectFieldType(fieldType);
-    await dismissFieldEditor();
   }
 
   Future<void> tapDatabaseSettingButton() async {
@@ -914,7 +1067,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
   Future<void> tapCreateFilterByFieldType(FieldType type, String title) async {
     final findFilter = find.byWidgetPredicate(
       (widget) =>
-          widget is GridFilterPropertyCell &&
+          widget is FilterableFieldButton &&
           widget.fieldInfo.fieldType == type &&
           widget.fieldInfo.name == title,
     );
@@ -922,8 +1075,9 @@ extension AppFlowyDatabaseTest on WidgetTester {
   }
 
   Future<void> tapFilterButtonInGrid(String name) async {
-    final findFilter = find.byType(FilterMenuItem);
-    final button = find.descendant(of: findFilter, matching: find.text(name));
+    final button = find.byWidgetPredicate(
+      (widget) => widget is ChoiceChipButton && widget.fieldInfo.name == name,
+    );
     await tapButton(button);
   }
 
@@ -961,12 +1115,15 @@ extension AppFlowyDatabaseTest on WidgetTester {
   }
 
   /// Must call [tapSortMenuInSettingBar] first.
-  Future<void> tapSortButtonByName(String name) async {
-    final findSortItem = find.byWidgetPredicate(
-      (widget) =>
-          widget is DatabaseSortItem && widget.sortInfo.fieldInfo.name == name,
+  Future<void> tapEditSortConditionButtonByFieldName(String name) async {
+    final sortItem = find.descendant(
+      of: find.ancestor(
+        of: find.text(name),
+        matching: find.byType(DatabaseSortItem),
+      ),
+      matching: find.byType(SortConditionButton),
     );
-    await tapButton(findSortItem);
+    await tapButton(sortItem);
   }
 
   /// Must call [tapSortMenuInSettingBar] first.
@@ -974,18 +1131,26 @@ extension AppFlowyDatabaseTest on WidgetTester {
     (FieldType, String) from,
     (FieldType, String) to,
   ) async {
-    final fromSortItem = find.byWidgetPredicate(
-      (widget) =>
-          widget is DatabaseSortItem &&
-          widget.sortInfo.fieldInfo.fieldType == from.$1 &&
-          widget.sortInfo.fieldInfo.name == from.$2,
+    final fromSortItem = find.ancestor(
+      of: find.text(from.$2),
+      matching: find.byType(DatabaseSortItem),
     );
-    final toSortItem = find.byWidgetPredicate(
-      (widget) =>
-          widget is DatabaseSortItem &&
-          widget.sortInfo.fieldInfo.fieldType == to.$1 &&
-          widget.sortInfo.fieldInfo.name == to.$2,
+    final toSortItem = find.ancestor(
+      of: find.text(to.$2),
+      matching: find.byType(DatabaseSortItem),
     );
+    // final fromSortItem = find.byWidgetPredicate(
+    //   (widget) =>
+    //       widget is DatabaseSortItem &&
+    //       widget.sort.fieldInfo.fieldType == from.$1 &&
+    //       widget.sort.fieldInfo.name == from.$2,
+    // );
+    // final toSortItem = find.byWidgetPredicate(
+    //   (widget) =>
+    //       widget is DatabaseSortItem &&
+    //       widget.sort.fieldInfo.fieldType == to.$1 &&
+    //       widget.sort.fieldInfo.name == to.$2,
+    // );
     final dragElement = find.descendant(
       of: fromSortItem,
       matching: find.byType(ReorderableDragStartListener),
@@ -994,16 +1159,13 @@ extension AppFlowyDatabaseTest on WidgetTester {
     await pumpAndSettle(const Duration(milliseconds: 200));
   }
 
-  /// Must call [tapSortButtonByName] first.
+  /// Must call [tapEditSortConditionButtonByFieldName] first.
   Future<void> tapSortByDescending() async {
     await tapButton(
-      find.descendant(
-        of: find.byType(OrderPannelItem),
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is FlowyText &&
-              widget.text == LocaleKeys.grid_sort_descending.tr(),
-        ),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is OrderPanelItem &&
+            widget.condition == SortConditionPB.Descending,
       ),
     );
     await sendKeyEvent(LogicalKeyboardKey.escape);
@@ -1011,7 +1173,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
   }
 
   /// Must call [tapSortMenuInSettingBar] first.
-  Future<void> tapAllSortButton() async {
+  Future<void> tapDeleteAllSortsButton() async {
     await tapButton(find.byType(DeleteAllSortsButton));
   }
 
@@ -1081,6 +1243,44 @@ extension AppFlowyDatabaseTest on WidgetTester {
     final button = find.descendant(
       of: find.byType(HoverButton),
       matching: find.text(LocaleKeys.grid_checklistFilter_isComplete.tr()),
+    );
+
+    await tapButton(button);
+  }
+
+  Future<void> changeTextFilterCondition(
+    TextFilterConditionPB condition,
+  ) async {
+    await tapButton(find.byType(TextFilterConditionList));
+    final button = find.descendant(
+      of: find.byType(HoverButton),
+      matching: find.text(
+        condition.filterName,
+      ),
+    );
+
+    await tapButton(button);
+  }
+
+  Future<void> changeSelectFilterCondition(
+    SelectOptionFilterConditionPB condition,
+  ) async {
+    await tapButton(find.byType(SelectOptionFilterConditionList));
+    final button = find.descendant(
+      of: find.byType(HoverButton),
+      matching: find.text(condition.i18n),
+    );
+
+    await tapButton(button);
+  }
+
+  Future<void> changeDateFilterCondition(
+    DateTimeFilterCondition condition,
+  ) async {
+    await tapButton(find.byType(DateFilterConditionList));
+    final button = find.descendant(
+      of: find.byType(HoverButton),
+      matching: find.text(condition.filterName),
     );
 
     await tapButton(button);
@@ -1248,7 +1448,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
       matching: find.byType(EventCard),
     );
 
-    await tapButton(cards.at(index));
+    await tapButton(cards.at(index), milliseconds: 1000);
   }
 
   void assertEventEditorOpen() =>
@@ -1264,6 +1464,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
     );
 
     await enterText(textField, title);
+    await testTextInput.receiveAction(TextInputAction.done);
     await pumpAndSettle(const Duration(milliseconds: 300));
   }
 
@@ -1287,6 +1488,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
     );
 
     await tapButton(button);
+    await tapButtonWithName(LocaleKeys.button_delete.tr());
   }
 
   Future<void> dragDropRescheduleCalendarEvent() async {
@@ -1394,7 +1596,7 @@ extension AppFlowyDatabaseTest on WidgetTester {
         of: textField,
         matching: find.byWidgetPredicate(
           (widget) =>
-              widget is FlowySvg && widget.svg == FlowySvgs.close_filled_m,
+              widget is FlowySvg && widget.svg == FlowySvgs.close_filled_s,
         ),
       ),
     );
@@ -1578,6 +1780,8 @@ Finder finderForFieldType(FieldType fieldType) {
       return find.byType(EditableTextCell, skipOffstage: false);
     case FieldType.URL:
       return find.byType(EditableURLCell, skipOffstage: false);
+    case FieldType.Media:
+      return find.byType(EditableMediaCell, skipOffstage: false);
     default:
       throw Exception('Unknown field type: $fieldType');
   }

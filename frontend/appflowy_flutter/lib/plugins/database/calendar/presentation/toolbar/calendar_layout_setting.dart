@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/database/application/database_controller.dart';
@@ -5,12 +7,9 @@ import 'package:appflowy/plugins/database/application/setting/property_bloc.dart
 import 'package:appflowy/plugins/database/calendar/application/calendar_setting_bloc.dart';
 import 'package:appflowy/plugins/database/grid/presentation/layout/sizes.dart';
 import 'package:appflowy/workspace/presentation/widgets/toggle/toggle.dart';
-import 'package:appflowy/workspace/presentation/widgets/toggle/toggle_style.dart';
 import 'package:appflowy_backend/protobuf/flowy-database2/protobuf.dart';
-import 'package:appflowy_popover/appflowy_popover.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Widget that displays a list of settings that alters the appearance of the
@@ -29,6 +28,12 @@ class CalendarLayoutSetting extends StatefulWidget {
 
 class _CalendarLayoutSettingState extends State<CalendarLayoutSetting> {
   final PopoverMutex popoverMutex = PopoverMutex();
+
+  @override
+  void dispose() {
+    popoverMutex.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -167,12 +172,15 @@ class LayoutDateField extends StatelessWidget {
                   return SizedBox(
                     height: GridSize.popoverItemHeight,
                     child: FlowyButton(
-                      text: FlowyText.medium(fieldInfo.name),
+                      text: FlowyText(
+                        fieldInfo.name,
+                        lineHeight: 1.0,
+                      ),
                       onTap: () {
                         onUpdated(fieldInfo.id);
                         popoverMutex.close();
                       },
-                      leftIcon: const FlowySvg(FlowySvgs.grid_s),
+                      leftIcon: const FlowySvg(FlowySvgs.date_s),
                       rightIcon: fieldInfo.id == fieldId
                           ? const FlowySvg(FlowySvgs.check_s)
                           : null,
@@ -199,7 +207,8 @@ class LayoutDateField extends StatelessWidget {
         height: GridSize.popoverItemHeight,
         child: FlowyButton(
           margin: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 10.0),
-          text: FlowyText.medium(
+          text: FlowyText(
+            lineHeight: 1.0,
             LocaleKeys.calendar_settings_layoutDateField.tr(),
           ),
         ),
@@ -300,7 +309,8 @@ class FirstDayOfWeek extends StatelessWidget {
         height: GridSize.popoverItemHeight,
         child: FlowyButton(
           margin: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 10.0),
-          text: FlowyText.medium(
+          text: FlowyText(
+            lineHeight: 1.0,
             LocaleKeys.calendar_settings_firstDayOfWeek.tr(),
           ),
         ),
@@ -320,12 +330,11 @@ Widget _toggleItem({
       padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 10.0),
       child: Row(
         children: [
-          FlowyText.medium(text),
+          FlowyText(text),
           const Spacer(),
           Toggle(
             value: value,
-            onChanged: (value) => onToggle(!value),
-            style: ToggleStyle.big,
+            onChanged: (value) => onToggle(value),
             padding: EdgeInsets.zero,
           ),
         ],
@@ -362,7 +371,10 @@ class StartFromButton extends StatelessWidget {
     return SizedBox(
       height: GridSize.popoverItemHeight,
       child: FlowyButton(
-        text: FlowyText.medium(title),
+        text: FlowyText(
+          title,
+          lineHeight: 1.0,
+        ),
         onTap: () => onTap(dayIndex),
         rightIcon: isSelected ? const FlowySvg(FlowySvgs.check_s) : null,
       ),

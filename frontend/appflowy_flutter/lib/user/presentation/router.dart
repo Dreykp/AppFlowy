@@ -4,12 +4,12 @@ import 'package:appflowy/user/presentation/screens/screens.dart';
 import 'package:appflowy/workspace/presentation/home/desktop_home_screen.dart';
 import 'package:appflowy_backend/dispatch/dispatch.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart'
     show UserProfilePB;
-import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
-import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:universal_platform/universal_platform.dart';
 
 class AuthRouter {
   void pushForgetPasswordScreen(BuildContext context) {}
@@ -19,10 +19,6 @@ class AuthRouter {
     UserProfilePB userProfile,
   ) {
     getIt<SplashRouter>().pushWorkspaceStartScreen(context, userProfile);
-  }
-
-  void pushSignUpScreen(BuildContext context) {
-    context.push(SignUpScreen.routeName);
   }
 
   /// Navigates to the home screen based on the current workspace and platform.
@@ -47,7 +43,7 @@ class AuthRouter {
       (workspaceSetting) {
         // Replace SignInScreen or SkipLogInScreen as root page.
         // If user click back button, it will exit app rather than go back to SignInScreen or SkipLogInScreen
-        if (PlatformExtension.isMobile) {
+        if (UniversalPlatform.isMobile) {
           context.go(
             MobileHomeScreen.routeName,
           );
@@ -58,20 +54,6 @@ class AuthRouter {
         }
       },
       (error) => pushWorkspaceStartScreen(context, userProfile),
-    );
-  }
-
-  void pushEncryptionScreen(
-    BuildContext context,
-    UserProfilePB userProfile,
-  ) {
-    // After log in,push EncryptionScreen on the top SignInScreen
-    context.push(
-      EncryptSecretScreen.routeName,
-      extra: {
-        EncryptSecretScreen.argUser: userProfile,
-        EncryptSecretScreen.argKey: ValueKey(userProfile.id),
-      },
     );
   }
 
@@ -114,7 +96,7 @@ class SplashRouter {
   void pushHomeScreen(
     BuildContext context,
   ) {
-    if (PlatformExtension.isMobile) {
+    if (UniversalPlatform.isMobile) {
       context.push(
         MobileHomeScreen.routeName,
       );
@@ -128,7 +110,7 @@ class SplashRouter {
   void goHomeScreen(
     BuildContext context,
   ) {
-    if (PlatformExtension.isMobile) {
+    if (UniversalPlatform.isMobile) {
       context.go(
         MobileHomeScreen.routeName,
       );

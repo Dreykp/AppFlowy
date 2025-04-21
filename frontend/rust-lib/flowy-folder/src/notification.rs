@@ -1,8 +1,7 @@
 use flowy_derive::ProtoBuf_Enum;
 use flowy_notification::NotificationBuilder;
 use lib_dispatch::prelude::ToBytes;
-
-use crate::entities::{ViewPB, WorkspaceSettingPB};
+use tracing::trace;
 
 const FOLDER_OBSERVABLE_SOURCE: &str = "Workspace";
 
@@ -12,7 +11,7 @@ pub enum FolderNotification {
   Unknown = 0,
   /// Trigger after creating a workspace
   DidCreateWorkspace = 1,
-  // /// Trigger after updating a workspace
+  /// Trigger after updating a workspace
   DidUpdateWorkspace = 2,
 
   DidUpdateWorkspaceViews = 3,
@@ -70,28 +69,21 @@ impl std::convert::From<i32> for FolderNotification {
   }
 }
 
-#[tracing::instrument(level = "trace")]
-pub(crate) fn send_notification(id: &str, ty: FolderNotification) -> NotificationBuilder {
-  NotificationBuilder::new(id, ty, FOLDER_OBSERVABLE_SOURCE)
+#[tracing::instrument(level = "trace", skip_all)]
+pub(crate) fn folder_notification_builder<T: ToString>(
+  id: T,
+  ty: FolderNotification,
+) -> NotificationBuilder {
+  let id = id.to_string();
+  trace!("folder_notification_builder: id = {id}, ty = {ty:?}");
+  NotificationBuilder::new(&id, ty, FOLDER_OBSERVABLE_SOURCE)
 }
 
 /// The [CURRENT_WORKSPACE] represents as the current workspace that opened by the
 /// user. Only one workspace can be opened at a time.
 const CURRENT_WORKSPACE: &str = "current-workspace";
-pub(crate) fn send_workspace_notification<T: ToBytes>(ty: FolderNotification, payload: T) {
-  send_notification(CURRENT_WORKSPACE, ty)
+pub(crate) fn send_current_workspace_notification<T: ToBytes>(ty: FolderNotification, payload: T) {
+  folder_notification_builder(CURRENT_WORKSPACE, ty)
     .payload(payload)
     .send();
-}
-
-pub(crate) fn send_workspace_setting_notification(
-  workspace_id: String,
-  latest_view: Option<ViewPB>,
-) -> Option<()> {
-  let setting = WorkspaceSettingPB {
-    workspace_id,
-    latest_view,
-  };
-  send_workspace_notification(FolderNotification::DidUpdateWorkspaceSetting, setting);
-  None
 }

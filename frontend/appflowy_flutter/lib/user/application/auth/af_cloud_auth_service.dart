@@ -18,7 +18,7 @@ class AppFlowyCloudAuthService implements AuthService {
   AppFlowyCloudAuthService();
 
   final BackendAuthService _backendAuthService = BackendAuthService(
-    AuthenticatorPB.AppFlowyCloud,
+    AuthTypePB.Server,
   );
 
   @override
@@ -32,12 +32,17 @@ class AppFlowyCloudAuthService implements AuthService {
   }
 
   @override
-  Future<FlowyResult<UserProfilePB, FlowyError>> signInWithEmailPassword({
+  Future<FlowyResult<GotrueTokenResponsePB, FlowyError>>
+      signInWithEmailPassword({
     required String email,
     required String password,
     Map<String, String> params = const {},
   }) async {
-    throw UnimplementedError();
+    return _backendAuthService.signInWithEmailPassword(
+      email: email,
+      password: password,
+      params: params,
+    );
   }
 
   @override
@@ -56,7 +61,7 @@ class AppFlowyCloudAuthService implements AuthService {
       (data) async {
         // Open the webview with oauth url
         final uri = Uri.parse(data.oauthUrl);
-        final isSuccess = await afLaunchUrl(
+        final isSuccess = await afLaunchUri(
           uri,
           mode: LaunchMode.externalApplication,
           webOnlyWindowName: '_self',
@@ -107,6 +112,17 @@ class AppFlowyCloudAuthService implements AuthService {
   }
 
   @override
+  Future<FlowyResult<GotrueTokenResponsePB, FlowyError>> signInWithPasscode({
+    required String email,
+    required String passcode,
+  }) async {
+    return _backendAuthService.signInWithPasscode(
+      email: email,
+      passcode: passcode,
+    );
+  }
+
+  @override
   Future<FlowyResult<UserProfilePB, FlowyError>> getUser() async {
     return UserBackendService.getCurrentUserProfile();
   }
@@ -121,6 +137,8 @@ extension ProviderTypePBExtension on ProviderTypePB {
         return ProviderTypePB.Google;
       case 'discord':
         return ProviderTypePB.Discord;
+      case 'apple':
+        return ProviderTypePB.Apple;
       default:
         throw UnimplementedError();
     }
