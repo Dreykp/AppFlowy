@@ -15,11 +15,13 @@ import 'package:appflowy/workspace/application/tabs/tabs_bloc.dart';
 import 'package:appflowy/workspace/application/view/prelude.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/presentation/home/home_sizes.dart';
+import 'package:appflowy/workspace/presentation/home/hotkeys.dart';
 import 'package:appflowy/workspace/presentation/home/menu/menu_shared_state.dart';
 import 'package:appflowy/workspace/presentation/home/menu/view/draggable_view_item.dart';
 import 'package:appflowy/workspace/presentation/home/menu/view/view_action_type.dart';
 import 'package:appflowy/workspace/presentation/home/menu/view/view_add_button.dart';
 import 'package:appflowy/workspace/presentation/home/menu/view/view_more_action_button.dart';
+import 'package:appflowy/workspace/presentation/widgets/dialog_v2.dart';
 import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:appflowy/workspace/presentation/widgets/more_view_actions/widgets/lock_page_action.dart';
 import 'package:appflowy/workspace/presentation/widgets/rename_view_popover.dart';
@@ -720,7 +722,8 @@ class _SingleInnerViewItemState extends State<SingleInnerViewItem> {
     final viewBloc = context.read<ViewBloc>();
 
     // the name of new document should be empty
-    final viewName = pluginBuilder.layoutType != ViewLayoutPB.Document
+    final viewName = ![ViewLayoutPB.Document, ViewLayoutPB.Chat]
+            .contains(pluginBuilder.layoutType)
         ? LocaleKeys.menuAppHeader_defaultNewPageName.tr()
         : '';
     viewBloc.add(
@@ -764,15 +767,15 @@ class _SingleInnerViewItemState extends State<SingleInnerViewItem> {
               break;
             case ViewMoreActionType.rename:
               unawaited(
-                NavigatorTextFieldDialog(
+                showAFTextFieldDialog(
+                  context: context,
                   title: LocaleKeys.disclosureAction_rename.tr(),
-                  autoSelectAllText: true,
-                  value: widget.view.nameOrDefault,
-                  maxLength: 256,
-                  onConfirm: (newValue, _) {
+                  initialValue: widget.view.nameOrDefault,
+                  onConfirm: (newValue) {
                     context.read<ViewBloc>().add(ViewEvent.rename(newValue));
                   },
-                ).show(context),
+                  maxLength: 256,
+                ),
               );
               break;
             case ViewMoreActionType.delete:
@@ -886,6 +889,8 @@ void moveViewCrossSpace(
       'Move view(${from.name}) to another space(${toSpace.name}), unpublish the view',
     );
     context.read<ViewBloc>().add(const ViewEvent.unpublish(sync: false));
+
+    switchToSpaceNotifier.value = toSpace;
   }
 
   context.read<ViewBloc>().add(ViewEvent.move(from, toId, null, null, null));

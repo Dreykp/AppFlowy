@@ -3,7 +3,9 @@ import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/ai_chat/application/chat_ai_message_bloc.dart';
 import 'package:appflowy/plugins/ai_chat/application/chat_bloc.dart';
 import 'package:appflowy/plugins/ai_chat/application/chat_entity.dart';
+import 'package:appflowy/plugins/ai_chat/application/chat_message_height_manager.dart';
 import 'package:appflowy/plugins/ai_chat/application/chat_message_stream.dart';
+import 'package:appflowy/plugins/ai_chat/presentation/widgets/message_height_calculator.dart';
 import 'package:appflowy_backend/protobuf/flowy-ai/protobuf.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:fixnum/fixnum.dart';
@@ -41,6 +43,8 @@ class ChatAIMessageWidget extends StatelessWidget {
     this.isLastMessage = false,
     this.isStreaming = false,
     this.isSelectingMessages = false,
+    this.enableAnimation = true,
+    this.hasRelatedQuestions = false,
   });
 
   final User user;
@@ -59,6 +63,8 @@ class ChatAIMessageWidget extends StatelessWidget {
   final bool isStreaming;
   final bool isLastMessage;
   final bool isSelectingMessages;
+  final bool enableAnimation;
+  final bool hasRelatedQuestions;
 
   @override
   Widget build(BuildContext context) {
@@ -69,23 +75,39 @@ class ChatAIMessageWidget extends StatelessWidget {
         chatId: chatId,
         questionId: questionId,
       ),
-      child: BlocBuilder<ChatAIMessageBloc, ChatAIMessageState>(
-        builder: (context, state) {
-          final loadingText =
-              state.progress?.step ?? LocaleKeys.chat_generatingResponse.tr();
+      child: BlocConsumer<ChatAIMessageBloc, ChatAIMessageState>(
+        listenWhen: (previous, current) =>
+            previous.messageState != current.messageState,
+        listener: (context, state) => _handleMessageState(state, context),
+        builder: (context, blocState) {
+          final loadingText = blocState.progress?.step ??
+              LocaleKeys.chat_generatingResponse.tr();
 
-          return BlocListener<ChatBloc, ChatState>(
-            listenWhen: (previous, current) =>
-                previous.clearErrorMessages != current.clearErrorMessages,
-            listener: (context, chatState) {
-              if (state.stream?.error?.isEmpty != false) {
-                return;
-              }
-              context.read<ChatBloc>().add(ChatEvent.deleteMessage(message));
-            },
-            child: Padding(
-              padding: AIChatUILayout.messageMargin,
-              child: state.messageState.when(
+          // Calculate minimum height only for the last AI answer message
+          double minHeight = 0;
+          if (isLastMessage && !hasRelatedQuestions) {
+            final screenHeight = MediaQuery.of(context).size.height;
+            minHeight = ChatMessageHeightManager().calculateMinHeight(
+              messageId: message.id,
+              screenHeight: screenHeight,
+            );
+          }
+
+          return Container(
+            alignment: Alignment.topLeft,
+            constraints: BoxConstraints(
+              minHeight: minHeight,
+            ),
+            padding: AIChatUILayout.messageMargin,
+            child: MessageHeightCalculator(
+              messageId: message.id,
+              onHeightMeasured: (messageId, height) {
+                ChatMessageHeightManager().cacheWithoutMinHeight(
+                  messageId: messageId,
+                  height: height,
+                );
+              },
+              child: blocState.messageState.when(
                 loading: () => ChatAIMessageBubble(
                   message: message,
                   showActions: false,
@@ -95,42 +117,28 @@ class ChatAIMessageWidget extends StatelessWidget {
                   ),
                 ),
                 ready: () {
-                  return state.text.isEmpty
-                      ? ChatAIMessageBubble(
+                  return blocState.text.isEmpty
+                      ? _LoadingMessage(
                           message: message,
-                          showActions: false,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: AILoadingIndicator(text: loadingText),
-                          ),
+                          loadingText: loadingText,
                         )
-                      : ChatAIMessageBubble(
+                      : _NonEmptyMessage(
+                          user: user,
+                          messageUserId: messageUserId,
                           message: message,
-                          isLastMessage: isLastMessage,
-                          showActions: stream == null &&
-                              state.text.isNotEmpty &&
-                              !isStreaming,
-                          isSelectingMessages: isSelectingMessages,
+                          stream: stream,
+                          questionId: questionId,
+                          chatId: chatId,
+                          refSourceJsonString: refSourceJsonString,
+                          onStopStream: onStopStream,
+                          onSelectedMetadata: onSelectedMetadata,
                           onRegenerate: onRegenerate,
                           onChangeFormat: onChangeFormat,
                           onChangeModel: onChangeModel,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              AIMarkdownText(
-                                markdown: state.text,
-                              ),
-                              if (state.sources.isNotEmpty)
-                                SelectionContainer.disabled(
-                                  child: AIMessageMetadata(
-                                    sources: state.sources,
-                                    onSelectedMetadata: onSelectedMetadata,
-                                  ),
-                                ),
-                              if (state.sources.isNotEmpty && !isLastMessage)
-                                const VSpace(8.0),
-                            ],
-                          ),
+                          isLastMessage: isLastMessage,
+                          isStreaming: isStreaming,
+                          isSelectingMessages: isSelectingMessages,
+                          enableAnimation: enableAnimation,
                         );
                 },
                 onError: (error) {
@@ -163,10 +171,127 @@ class ChatAIMessageWidget extends StatelessWidget {
                         .tr(),
                   );
                 },
+                aiFollowUp: (followUpData) {
+                  return const SizedBox.shrink();
+                },
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _handleMessageState(ChatAIMessageState state, BuildContext context) {
+    if (state.stream?.error?.isEmpty != false) {
+      state.messageState.maybeMap(
+        aiFollowUp: (messageState) {
+          context
+              .read<ChatBloc>()
+              .add(ChatEvent.onAIFollowUp(messageState.followUpData));
+        },
+        orElse: () {
+          // do nothing
+        },
+      );
+
+      return;
+    }
+    context.read<ChatBloc>().add(ChatEvent.deleteMessage(message));
+  }
+}
+
+class _LoadingMessage extends StatelessWidget {
+  const _LoadingMessage({
+    required this.message,
+    required this.loadingText,
+  });
+
+  final Message message;
+  final String loadingText;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChatAIMessageBubble(
+      message: message,
+      showActions: false,
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(start: 4.0, top: 8.0),
+        child: AILoadingIndicator(text: loadingText),
+      ),
+    );
+  }
+}
+
+class _NonEmptyMessage extends StatelessWidget {
+  const _NonEmptyMessage({
+    required this.user,
+    required this.messageUserId,
+    required this.message,
+    required this.stream,
+    required this.questionId,
+    required this.chatId,
+    required this.refSourceJsonString,
+    required this.onStopStream,
+    this.onSelectedMetadata,
+    this.onRegenerate,
+    this.onChangeFormat,
+    this.onChangeModel,
+    this.isLastMessage = false,
+    this.isStreaming = false,
+    this.isSelectingMessages = false,
+    this.enableAnimation = true,
+  });
+
+  final User user;
+  final String messageUserId;
+
+  final Message message;
+  final AnswerStream? stream;
+  final Int64? questionId;
+  final String chatId;
+  final String? refSourceJsonString;
+  final ValueChanged<ChatMessageRefSource>? onSelectedMetadata;
+  final VoidCallback? onRegenerate;
+  final VoidCallback onStopStream;
+  final ValueChanged<PredefinedFormat>? onChangeFormat;
+  final ValueChanged<AIModelPB>? onChangeModel;
+  final bool isStreaming;
+  final bool isLastMessage;
+  final bool isSelectingMessages;
+  final bool enableAnimation;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<ChatAIMessageBloc>().state;
+    final showActions = stream == null && state.text.isNotEmpty && !isStreaming;
+    return ChatAIMessageBubble(
+      message: message,
+      isLastMessage: isLastMessage,
+      showActions: showActions,
+      isSelectingMessages: isSelectingMessages,
+      onRegenerate: onRegenerate,
+      onChangeFormat: onChangeFormat,
+      onChangeModel: onChangeModel,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsetsDirectional.only(start: 4.0),
+            child: AIMarkdownText(
+              markdown: state.text,
+              withAnimation: enableAnimation && stream != null,
+            ),
+          ),
+          if (state.sources.isNotEmpty)
+            SelectionContainer.disabled(
+              child: AIMessageMetadata(
+                sources: state.sources,
+                onSelectedMetadata: onSelectedMetadata,
+              ),
+            ),
+          if (state.sources.isNotEmpty && !isLastMessage) const VSpace(8.0),
+        ],
       ),
     );
   }

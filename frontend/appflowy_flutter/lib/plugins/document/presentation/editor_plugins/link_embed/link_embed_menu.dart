@@ -35,23 +35,24 @@ class LinkEmbedMenu extends StatefulWidget {
 }
 
 class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
-  final turnintoController = PopoverController();
+  final turnIntoController = PopoverController();
   final moreOptionController = PopoverController();
-  int turnintoMenuNum = 0, moreOptionNum = 0, alignMenuNum = 0;
+  int turnIntoMenuNum = 0, moreOptionNum = 0, alignMenuNum = 0;
   final moreOptionButtonKey = GlobalKey();
-  bool get isTurnIntoShowing => turnintoMenuNum > 0;
+  bool get isTurnIntoShowing => turnIntoMenuNum > 0;
   bool get isMoreOptionShowing => moreOptionNum > 0;
   bool get isAlignMenuShowing => alignMenuNum > 0;
 
   Node get node => widget.node;
   EditorState get editorState => widget.editorState;
+  bool get editable => editorState.editable;
 
   String get url => node.attributes[LinkPreviewBlockKeys.url] ?? '';
 
   @override
   void dispose() {
     super.dispose();
-    turnintoController.close();
+    turnIntoController.close();
     moreOptionController.close();
     widget.onMenuHided.call();
   }
@@ -64,13 +65,13 @@ class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
   Widget buildChild() {
     final theme = AppFlowyTheme.of(context),
         iconScheme = theme.iconColorScheme,
-        fillScheme = theme.fillColorScheme;
+        surfaceColorScheme = theme.surfaceColorScheme;
 
     return Container(
       padding: EdgeInsets.all(4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: fillScheme.primaryAlpha80,
+        color: surfaceColorScheme.inverse,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -94,40 +95,42 @@ class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
             preferBelow: false,
             onPressed: () => copyLink(context),
           ),
-          buildconvertBotton(),
-          buildMoreOptionBotton(),
+          buildConvertButton(),
+          buildMoreOptionButton(),
         ],
       ),
     );
   }
 
-  Widget buildconvertBotton() {
+  Widget buildConvertButton() {
     final theme = AppFlowyTheme.of(context), iconScheme = theme.iconColorScheme;
+    final button = FlowyIconButton(
+      icon: FlowySvg(
+        FlowySvgs.turninto_m,
+        color: iconScheme.tertiary,
+      ),
+      radius: BorderRadius.all(Radius.circular(theme.borderRadius.m)),
+      tooltipText: LocaleKeys.editor_convertTo.tr(),
+      preferBelow: false,
+      onPressed: getTapCallback(showTurnIntoMenu),
+    );
+    if (!editable) return button;
     return AppFlowyPopover(
       offset: Offset(0, 6),
       direction: PopoverDirection.bottomWithRightAligned,
       margin: EdgeInsets.zero,
-      controller: turnintoController,
+      controller: turnIntoController,
       onOpen: () {
         keepEditorFocusNotifier.increase();
-        turnintoMenuNum++;
+        turnIntoMenuNum++;
       },
       onClose: () {
         keepEditorFocusNotifier.decrease();
-        turnintoMenuNum--;
+        turnIntoMenuNum--;
         checkToHideMenu();
       },
       popupBuilder: (context) => buildConvertMenu(),
-      child: FlowyIconButton(
-        icon: FlowySvg(
-          FlowySvgs.turninto_m,
-          color: iconScheme.tertiary,
-        ),
-        radius: BorderRadius.all(Radius.circular(theme.borderRadius.m)),
-        tooltipText: LocaleKeys.editor_convertTo.tr(),
-        preferBelow: false,
-        onPressed: showTurnIntoMenu,
-      ),
+      child: button,
     );
   }
 
@@ -169,8 +172,20 @@ class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
     );
   }
 
-  Widget buildMoreOptionBotton() {
+  Widget buildMoreOptionButton() {
     final theme = AppFlowyTheme.of(context), iconScheme = theme.iconColorScheme;
+    final button = FlowyIconButton(
+      key: moreOptionButtonKey,
+      icon: FlowySvg(
+        FlowySvgs.toolbar_more_m,
+        color: iconScheme.tertiary,
+      ),
+      radius: BorderRadius.all(Radius.circular(theme.borderRadius.m)),
+      tooltipText: LocaleKeys.document_toolbar_moreOptions.tr(),
+      preferBelow: false,
+      onPressed: getTapCallback(showMoreOptionMenu),
+    );
+    if (!editable) return button;
     return AppFlowyPopover(
       offset: Offset(0, 6),
       direction: PopoverDirection.bottomWithRightAligned,
@@ -186,17 +201,7 @@ class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
         checkToHideMenu();
       },
       popupBuilder: (context) => buildMoreOptionMenu(),
-      child: FlowyIconButton(
-        key: moreOptionButtonKey,
-        icon: FlowySvg(
-          FlowySvgs.toolbar_more_m,
-          color: iconScheme.tertiary,
-        ),
-        radius: BorderRadius.all(Radius.circular(theme.borderRadius.m)),
-        tooltipText: LocaleKeys.document_toolbar_moreOptions.tr(),
-        preferBelow: false,
-        onPressed: showMoreOptionMenu,
-      ),
+      child: button,
     );
   }
 
@@ -227,14 +232,14 @@ class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
 
   void showTurnIntoMenu() {
     keepEditorFocusNotifier.increase();
-    turnintoController.show();
+    turnIntoController.show();
     checkToShowMenu();
-    turnintoMenuNum++;
+    turnIntoMenuNum++;
     if (isMoreOptionShowing) closeMoreOptionMenu();
   }
 
   void closeTurnIntoMenu() {
-    turnintoController.close();
+    turnIntoController.close();
     checkToHideMenu();
   }
 
@@ -305,6 +310,11 @@ class _LinkEmbedMenuState extends State<LinkEmbedMenu> {
         break;
     }
     closeMoreOptionMenu();
+  }
+
+  VoidCallback? getTapCallback(VoidCallback callback) {
+    if (editable) return callback;
+    return null;
   }
 }
 

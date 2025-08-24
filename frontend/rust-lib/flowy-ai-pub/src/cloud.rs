@@ -1,4 +1,5 @@
 use crate::cloud::ai_dto::AvailableModel;
+pub use client_api::entity::QuestionStreamValue;
 pub use client_api::entity::ai_dto::{
   AppFlowyOfflineAI, CompleteTextParams, CompletionMessage, CompletionMetadata, CompletionType,
   CreateChatContext, CustomPrompt, LLMModel, LocalAIConfig, ModelInfo, ModelList, OutputContent,
@@ -9,7 +10,6 @@ pub use client_api::entity::chat_dto::{
   ChatMessage, ChatMessageType, ChatRAGData, ChatSettings, ContextLoader, MessageCursor,
   RepeatedChatMessage, UpdateChatParams,
 };
-pub use client_api::entity::QuestionStreamValue;
 pub use client_api::entity::*;
 pub use client_api::error::{AppResponseError, ErrorCode as AppErrorCode};
 use flowy_error::FlowyError;
@@ -31,6 +31,17 @@ pub struct AIModel {
   pub is_local: bool,
   #[serde(default)]
   pub desc: String,
+}
+
+impl AIModel {
+  /// Create a new model instance
+  pub fn new(name: impl Into<String>, description: impl Into<String>, is_local: bool) -> Self {
+    Self {
+      name: name.into(),
+      desc: description.into(),
+      is_local,
+    }
+  }
 }
 
 impl From<AvailableModel> for AIModel {
@@ -95,6 +106,7 @@ pub trait ChatCloudService: Send + Sync + 'static {
     chat_id: &Uuid,
     message: &str,
     message_type: ChatMessageType,
+    prompt_id: Option<String>,
   ) -> Result<ChatMessage, FlowyError>;
 
   async fn create_answer(
@@ -112,7 +124,7 @@ pub trait ChatCloudService: Send + Sync + 'static {
     chat_id: &Uuid,
     question_id: i64,
     format: ResponseFormat,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamAnswer, FlowyError>;
 
   async fn get_answer(
@@ -142,14 +154,14 @@ pub trait ChatCloudService: Send + Sync + 'static {
     workspace_id: &Uuid,
     chat_id: &Uuid,
     message_id: i64,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<RepeatedRelatedQuestion, FlowyError>;
 
   async fn stream_complete(
     &self,
     workspace_id: &Uuid,
     params: CompleteTextParams,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamComplete, FlowyError>;
 
   async fn embed_file(
@@ -174,5 +186,11 @@ pub trait ChatCloudService: Send + Sync + 'static {
   ) -> Result<(), FlowyError>;
 
   async fn get_available_models(&self, workspace_id: &Uuid) -> Result<ModelList, FlowyError>;
+
   async fn get_workspace_default_model(&self, workspace_id: &Uuid) -> Result<String, FlowyError>;
+  async fn set_workspace_default_model(
+    &self,
+    workspace_id: &Uuid,
+    model: &str,
+  ) -> Result<(), FlowyError>;
 }

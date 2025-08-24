@@ -6,14 +6,14 @@ use tokio::sync::oneshot;
 use tracing::{info, instrument};
 
 use flowy_error::{FlowyError, FlowyResult};
-use lib_dispatch::prelude::{data_result_ok, AFPluginData, AFPluginState, DataResult};
+use lib_dispatch::prelude::{AFPluginData, AFPluginState, DataResult, data_result_ok};
 
 use crate::entities::*;
 use crate::manager::DatabaseManager;
 use crate::services::field::checklist_filter::ChecklistCellChangeset;
 use crate::services::field::date_filter::DateCellChangeset;
 use crate::services::field::{
-  type_option_data_from_pb, RelationCellChangeset, SelectOptionCellChangeset, TypeOptionCellExt,
+  RelationCellChangeset, SelectOptionCellChangeset, TypeOptionCellExt, type_option_data_from_pb,
 };
 use crate::services::group::GroupChangeset;
 use crate::services::share::csv::CSVFormat;
@@ -1412,4 +1412,39 @@ pub(crate) async fn rename_media_cell_file_handler(
   }
 
   Ok(())
+}
+
+#[tracing::instrument(level = "debug", skip(manager), err)]
+pub(crate) async fn get_database_custom_prompts_handler(
+  data: AFPluginData<CustomPromptDatabaseConfigPB>,
+  manager: AFPluginState<Weak<DatabaseManager>>,
+) -> DataResult<RepeatedCustomPromptPB, FlowyError> {
+  let manager = upgrade_manager(manager)?;
+  let params: CustomPromptDatabaseConfigPB = data.try_into_inner()?;
+  let database_editor = manager
+    .get_database_editor_with_view_id(params.view_id.as_ref())
+    .await?;
+  let custom_prompts = database_editor.get_prompts_from_database(&params).await?;
+
+  data_result_ok(RepeatedCustomPromptPB {
+    items: custom_prompts,
+  })
+}
+
+#[tracing::instrument(level = "debug", skip(manager), err)]
+pub(crate) async fn test_custom_prompt_database_configuration_handler(
+  data: AFPluginData<DatabaseViewIdPB>,
+  manager: AFPluginState<Weak<DatabaseManager>>,
+) -> DataResult<CustomPromptDatabaseConfigPB, FlowyError> {
+  let manager = upgrade_manager(manager)?;
+  let params: DatabaseViewIdPB = data.try_into_inner()?;
+  let database_editor = manager
+    .get_database_editor_with_view_id(params.as_ref())
+    .await?;
+
+  let configuration = database_editor
+    .test_custom_prompt_database_configuration(params.value.as_ref())
+    .await?;
+
+  data_result_ok(configuration)
 }

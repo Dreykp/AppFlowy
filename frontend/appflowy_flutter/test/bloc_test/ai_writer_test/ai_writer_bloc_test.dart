@@ -4,6 +4,7 @@ import 'package:appflowy/ai/ai.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/ai/operations/ai_writer_cubit.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/ai/operations/ai_writer_entities.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.dart';
+import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy_backend/protobuf/flowy-ai/entities.pb.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:bloc_test/bloc_test.dart';
@@ -22,6 +23,7 @@ class _MockAIRepository extends Mock implements AppFlowyAIService {
     String? objectId,
     required String text,
     PredefinedFormat? format,
+    String? promptId,
     List<String> sourceIds = const [],
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
@@ -56,6 +58,7 @@ class _MockAIRepositoryLess extends Mock implements AppFlowyAIService {
     String? objectId,
     required String text,
     PredefinedFormat? format,
+    String? promptId,
     List<String> sourceIds = const [],
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
@@ -86,6 +89,7 @@ class _MockAIRepositoryMore extends Mock implements AppFlowyAIService {
     String? objectId,
     required String text,
     PredefinedFormat? format,
+    String? promptId,
     List<String> sourceIds = const [],
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
@@ -118,6 +122,7 @@ class _MockErrorRepository extends Mock implements AppFlowyAIService {
     String? objectId,
     required String text,
     PredefinedFormat? format,
+    String? promptId,
     List<String> sourceIds = const [],
     List<AiWriterRecord> history = const [],
     required CompletionTypePB completionType,
@@ -143,6 +148,13 @@ class _MockErrorRepository extends Mock implements AppFlowyAIService {
     );
     return ('mock_id', stream);
   }
+}
+
+void registerMockRepository(AppFlowyAIService mock) {
+  if (getIt.isRegistered<AIRepository>()) {
+    getIt.unregister<AIRepository>();
+  }
+  getIt.registerFactory<AIRepository>(() => mock);
 }
 
 void main() {
@@ -174,10 +186,10 @@ void main() {
         );
         final editorState = EditorState(document: document)
           ..selection = selection;
+        registerMockRepository(_MockAIRepository());
         return AiWriterCubit(
           documentId: '',
           editorState: editorState,
-          aiService: _MockAIRepository(),
         );
       },
       act: (bloc) => bloc.register(
@@ -230,10 +242,10 @@ void main() {
         );
         final editorState = EditorState(document: document)
           ..selection = selection;
+        registerMockRepository(_MockErrorRepository());
         return AiWriterCubit(
           documentId: '',
           editorState: editorState,
-          aiService: _MockErrorRepository(),
         );
       },
       act: (bloc) => bloc.register(
@@ -279,10 +291,10 @@ void main() {
       final editorState = EditorState(document: document)
         ..selection = selection;
       final aiNode = editorState.getNodeAtPath([3])!;
+      registerMockRepository(_MockAIRepository());
       final bloc = AiWriterCubit(
         documentId: '',
         editorState: editorState,
-        aiService: _MockAIRepository(),
       );
       bloc.register(aiNode);
       await blocResponseFuture();
@@ -327,10 +339,10 @@ void main() {
       final editorState = EditorState(document: document)
         ..selection = selection;
       final aiNode = editorState.getNodeAtPath([3])!;
+      registerMockRepository(_MockAIRepository());
       final bloc = AiWriterCubit(
         documentId: '',
         editorState: editorState,
-        aiService: _MockAIRepository(),
       );
       bloc.register(aiNode);
       await blocResponseFuture();
@@ -366,10 +378,10 @@ void main() {
       final editorState = EditorState(document: document)
         ..selection = selection;
       final aiNode = editorState.getNodeAtPath([3])!;
+      registerMockRepository(_MockAIRepositoryLess());
       final bloc = AiWriterCubit(
         documentId: '',
         editorState: editorState,
-        aiService: _MockAIRepositoryLess(),
       );
       bloc.register(aiNode);
       await blocResponseFuture();
@@ -403,10 +415,10 @@ void main() {
       final editorState = EditorState(document: document)
         ..selection = selection;
       final aiNode = editorState.getNodeAtPath([3])!;
+      registerMockRepository(_MockAIRepositoryMore());
       final bloc = AiWriterCubit(
         documentId: '',
         editorState: editorState,
-        aiService: _MockAIRepositoryMore(),
       );
       bloc.register(aiNode);
       await blocResponseFuture();

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:appflowy/ai/ai.dart';
+import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/workspace/application/view/view_service.dart';
 import 'package:appflowy_backend/dispatch/dispatch.dart';
 import 'package:appflowy_backend/log.dart';
@@ -28,15 +29,14 @@ class AiWriterCubit extends Cubit<AiWriterState> {
     this.onCreateNode,
     this.onRemoveNode,
     this.onAppendToDocument,
-    AppFlowyAIService? aiService,
-  })  : _aiService = aiService ?? AppFlowyAIService(),
+  })  : _aiService = getIt<AIRepository>(),
         _textRobot = MarkdownTextRobot(editorState: editorState),
         selectedSourcesNotifier = ValueNotifier([documentId]),
         super(IdleAiWriterState());
 
   final String documentId;
   final EditorState editorState;
-  final AppFlowyAIService _aiService;
+  final AIRepository _aiService;
   final MarkdownTextRobot _textRobot;
   final void Function()? onCreateNode;
   final void Function()? onRemoveNode;
@@ -115,13 +115,14 @@ class AiWriterCubit extends Cubit<AiWriterState> {
       return;
     }
 
-    runCommand(command, prompt, null);
+    runCommand(command, prompt, null, null);
   }
 
   void runCommand(
     AiWriterCommand command,
     String prompt,
     PredefinedFormat? predefinedFormat,
+    String? promptId,
   ) async {
     if (aiWriterNode == null) {
       return;
@@ -135,19 +136,29 @@ class AiWriterCubit extends Cubit<AiWriterState> {
         await _startContinueWriting(
           command,
           predefinedFormat,
+          promptId,
         );
         break;
       case AiWriterCommand.fixSpellingAndGrammar:
       case AiWriterCommand.improveWriting:
       case AiWriterCommand.makeLonger:
       case AiWriterCommand.makeShorter:
-        await _startSuggestingEdits(command, prompt, predefinedFormat);
+        await _startSuggestingEdits(
+          command,
+          prompt,
+          predefinedFormat,
+          promptId,
+        );
         break;
       case AiWriterCommand.explain:
-        await _startInforming(command, prompt, predefinedFormat);
+        await _startInforming(command, prompt, predefinedFormat, promptId);
         break;
       case AiWriterCommand.userQuestion when prompt.isNotEmpty:
-        _startAskingQuestion(prompt, predefinedFormat);
+        _startAskingQuestion(
+          prompt,
+          predefinedFormat,
+          promptId,
+        );
         break;
       case AiWriterCommand.userQuestion:
         emit(
@@ -168,6 +179,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
         (state as RegisteredAiWriter).command,
         lastQuestion.content,
         lastQuestion.format,
+        null,
       );
     }
   }
@@ -306,12 +318,14 @@ class AiWriterCubit extends Cubit<AiWriterState> {
 
     // check the node is registered
     if (node == null) {
+      Log.warn('[AI writer] Node is null');
       return (false, '');
     }
 
     // check the selection is valid
     final selection = node.aiWriterSelection?.normalized;
     if (selection == null) {
+      Log.warn('[AI writer]Selection is null');
       return (false, '');
     }
 
@@ -357,6 +371,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
   void _startAskingQuestion(
     String prompt,
     PredefinedFormat? format,
+    String? promptId,
   ) async {
     if (aiWriterNode == null) {
       return;
@@ -367,6 +382,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
       objectId: documentId,
       text: prompt,
       format: format,
+      promptId: promptId,
       history: records,
       sourceIds: selectedSourcesNotifier.value,
       completionType: command.toCompletionType(),
@@ -443,6 +459,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
   Future<void> _startContinueWriting(
     AiWriterCommand command,
     PredefinedFormat? predefinedFormat,
+    String? promptId,
   ) async {
     final position = aiWriterNode?.aiWriterSelection?.start;
     if (position == null) {
@@ -464,6 +481,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
       history: records,
       sourceIds: selectedSourcesNotifier.value,
       format: predefinedFormat,
+      promptId: promptId,
       onStart: () async {
         final position = await ensurePreviousNodeIsEmptyParagraph(
           editorState,
@@ -534,6 +552,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
     AiWriterCommand command,
     String prompt,
     PredefinedFormat? predefinedFormat,
+    String? promptId,
   ) async {
     final selection = aiWriterNode?.aiWriterSelection;
     if (selection == null) {
@@ -547,6 +566,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
       objectId: documentId,
       text: prompt,
       format: predefinedFormat,
+      promptId: promptId,
       completionType: command.toCompletionType(),
       history: records,
       sourceIds: selectedSourcesNotifier.value,
@@ -637,6 +657,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
     AiWriterCommand command,
     String prompt,
     PredefinedFormat? predefinedFormat,
+    String? promptId,
   ) async {
     final selection = aiWriterNode?.aiWriterSelection;
     if (selection == null) {
@@ -653,6 +674,7 @@ class AiWriterCubit extends Cubit<AiWriterState> {
       history: records,
       sourceIds: selectedSourcesNotifier.value,
       format: predefinedFormat,
+      promptId: promptId,
       onStart: () async {
         records.add(
           AiWriterRecord.user(

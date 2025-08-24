@@ -1,28 +1,37 @@
 import 'package:appflowy/generated/locale_keys.g.dart';
+import 'package:appflowy/mobile/presentation/search/mobile_search_cell.dart';
+import 'package:appflowy/mobile/presentation/search/mobile_view_ancestors.dart';
 import 'package:appflowy/util/string_extension.dart';
 import 'package:appflowy/workspace/application/command_palette/command_palette_bloc.dart';
-import 'package:appflowy/workspace/application/command_palette/search_result_ext.dart';
 import 'package:appflowy/workspace/application/command_palette/search_result_list_bloc.dart';
+import 'package:appflowy/workspace/presentation/command_palette/widgets/search_icon.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/style_widget/hover.dart';
-import 'package:flowy_infra_ui/style_widget/text.dart';
 import 'package:flowy_infra_ui/widget/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'page_preview.dart';
+
 class SearchResultCell extends StatefulWidget {
   const SearchResultCell({
     super.key,
     required this.item,
-    this.isTrashed = false,
+    required this.isNarrowWindow,
+    this.view,
+    this.query,
     this.isHovered = false,
   });
 
   final SearchResultItem item;
-  final bool isTrashed;
+  final ViewPB? view;
+  final String? query;
   final bool isHovered;
+  final bool isNarrowWindow;
 
   @override
   State<SearchResultCell> createState() => _SearchResultCellState();
@@ -31,6 +40,9 @@ class SearchResultCell extends StatefulWidget {
 class _SearchResultCellState extends State<SearchResultCell> {
   bool _hasFocus = false;
   final focusNode = FocusNode();
+
+  String get viewId => item.id;
+  SearchResultItem get item => widget.item;
 
   @override
   void dispose() {
@@ -41,93 +53,22 @@ class _SearchResultCellState extends State<SearchResultCell> {
   /// Helper to handle the selection action.
   void _handleSelection() {
     context.read<SearchResultListBloc>().add(
-          SearchResultListEvent.openPage(pageId: widget.item.id),
+          SearchResultListEvent.openPage(pageId: viewId),
         );
-  }
-
-  /// Helper to clean up preview text.
-  String _cleanPreview(String preview) {
-    return preview.replaceAll('\n', ' ').trim();
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.item.displayName.orDefault(
+    final title = item.displayName.orDefault(
       LocaleKeys.menuAppHeader_defaultNewPageName.tr(),
     );
-    final icon = widget.item.icon.getIcon();
-    final cleanedPreview = _cleanPreview(widget.item.content);
-    final hasPreview = cleanedPreview.isNotEmpty;
-    final trashHintText =
-        widget.isTrashed ? LocaleKeys.commandPalette_fromTrashHint.tr() : null;
+    final searchResultBloc = context.read<SearchResultListBloc>();
+    final hasHovered = searchResultBloc.state.hoveredResult != null;
 
-    // Build the tile content based on preview availability.
-    Widget tileContent;
-    if (hasPreview) {
-      tileContent = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (icon != null) ...[
-                SizedBox(width: 24, child: icon),
-                const HSpace(6),
-              ],
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.isTrashed)
-                      FlowyText(
-                        trashHintText!,
-                        color: AFThemeExtension.of(context)
-                            .textColor
-                            .withAlpha(175),
-                        fontSize: 10,
-                      ),
-                    FlowyText(
-                      title,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const VSpace(4),
-          _DocumentPreview(preview: cleanedPreview),
-        ],
-      );
-    } else {
-      tileContent = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            SizedBox(width: 24, child: icon),
-            const HSpace(6),
-          ],
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.isTrashed)
-                  FlowyText(
-                    trashHintText!,
-                    color:
-                        AFThemeExtension.of(context).textColor.withAlpha(175),
-                    fontSize: 10,
-                  ),
-                FlowyText(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
+    final theme = AppFlowyTheme.of(context);
+    final titleStyle = theme.textStyle.body
+        .enhanced(color: theme.textColorScheme.primary)
+        .copyWith(height: 22 / 14);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _handleSelection,
@@ -143,12 +84,12 @@ class _SearchResultCellState extends State<SearchResultCell> {
         },
         onFocusChange: (hasFocus) {
           setState(() {
-            context.read<SearchResultListBloc>().add(
-                  SearchResultListEvent.onHoverResult(
-                    item: widget.item,
-                    userHovered: true,
-                  ),
-                );
+            searchResultBloc.add(
+              SearchResultListEvent.onHoverResult(
+                item: item,
+                userHovered: true,
+              ),
+            );
             _hasFocus = hasFocus;
           });
         },
@@ -156,7 +97,7 @@ class _SearchResultCellState extends State<SearchResultCell> {
           onHover: (value) {
             context.read<SearchResultListBloc>().add(
                   SearchResultListEvent.onHoverResult(
-                    item: widget.item,
+                    item: item,
                     userHovered: true,
                   ),
                 );
@@ -164,72 +105,138 @@ class _SearchResultCellState extends State<SearchResultCell> {
           isSelected: () => _hasFocus || widget.isHovered,
           style: HoverStyle(
             borderRadius: BorderRadius.circular(8),
-            hoverColor:
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            hoverColor: theme.fillColorScheme.contentHover,
             foregroundColorOnHover: AFThemeExtension.of(context).textColor,
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 30),
-              child: tileContent,
+            padding: EdgeInsets.all(theme.spacing.l),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: 20,
+                      child: Center(child: buildIcon(theme)),
+                    ),
+                    HSpace(8),
+                    Container(
+                      constraints: BoxConstraints(
+                        maxWidth: (!widget.isNarrowWindow && hasHovered)
+                            ? 480.0
+                            : 680.0,
+                      ),
+                      child: RichText(
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        text: buildHighLightSpan(
+                          content: title,
+                          normal: titleStyle,
+                          highlight: titleStyle.copyWith(
+                            backgroundColor: theme.fillColorScheme.themeSelect,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Flexible(child: buildPath(theme)),
+                  ],
+                ),
+                ...buildSummary(theme),
+              ],
             ),
           ),
         ),
       ),
     );
   }
-}
 
-class _DocumentPreview extends StatelessWidget {
-  const _DocumentPreview({required this.preview});
+  Widget buildIcon(AppFlowyThemeData theme) {
+    final view = widget.view;
+    if (view != null) return view.buildIcon(context);
+    return item.icon.buildIcon(context) ?? const SizedBox.shrink();
+  }
 
-  final String preview;
-
-  @override
-  Widget build(BuildContext context) {
-    // Combine the horizontal padding for clarity:
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(30, 0, 16, 0),
-      child: FlowyText.regular(
-        preview,
-        color: Theme.of(context).hintColor,
-        fontSize: 12,
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
+  Widget buildPath(AppFlowyThemeData theme) {
+    return BlocProvider(
+      key: ValueKey(item.id),
+      create: (context) => ViewAncestorBloc(item.id),
+      child: BlocBuilder<ViewAncestorBloc, ViewAncestorState>(
+        builder: (context, state) {
+          if (state.ancestor.ancestors.isEmpty) return const SizedBox.shrink();
+          return state.buildOnelinePath(context);
+        },
       ),
     );
+  }
+
+  TextSpan buildHighLightSpan({
+    required String content,
+    required TextStyle normal,
+    required TextStyle highlight,
+  }) {
+    final queryText = (widget.query ?? '').trim();
+    if (queryText.isEmpty) {
+      return TextSpan(text: content, style: normal);
+    }
+    final contents = content.splitIncludeSeparator(queryText);
+    return TextSpan(
+      children: List.generate(contents.length, (index) {
+        final content = contents[index];
+        final isHighlight = content.toLowerCase() == queryText.toLowerCase();
+        return TextSpan(
+          text: content,
+          style: isHighlight ? highlight : normal,
+        );
+      }),
+    );
+  }
+
+  List<Widget> buildSummary(AppFlowyThemeData theme) {
+    if (item.content.isEmpty) return [];
+    final style = theme.textStyle.caption
+        .standard(color: theme.textColorScheme.secondary)
+        .copyWith(letterSpacing: 0.1);
+    return [
+      VSpace(4),
+      Padding(
+        padding: const EdgeInsets.only(left: 28),
+        child: RichText(
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          text: buildHighLightSpan(
+            content: item.content,
+            normal: style,
+            highlight: style.copyWith(
+              backgroundColor: theme.fillColorScheme.themeSelect,
+              color: theme.textColorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 }
 
 class SearchResultPreview extends StatelessWidget {
   const SearchResultPreview({
     super.key,
-    required this.data,
+    required this.view,
   });
 
-  final SearchResultItem data;
+  final ViewPB view;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Opacity(
-          opacity: 0.5,
-          child: FlowyText(
-            LocaleKeys.commandPalette_pagePreview.tr(),
-            fontSize: 12,
-          ),
-        ),
-        const VSpace(6),
-        Expanded(
-          child: FlowyText(
-            data.content,
-            maxLines: 30,
-          ),
-        ),
-      ],
+    return PagePreview(
+      view: view,
+      key: ValueKey(view.id),
+      onViewOpened: () {
+        context
+            .read<SearchResultListBloc?>()
+            ?.add(SearchResultListEvent.openPage(pageId: view.id));
+      },
     );
   }
 }

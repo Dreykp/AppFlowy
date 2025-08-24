@@ -1,7 +1,8 @@
 use collab_plugins::CollabKVDB;
-use flowy_ai::ai_manager::AIUserService;
+use flowy_ai_pub::user_service::AIUserService;
 use flowy_error::{FlowyError, FlowyResult};
 use flowy_sqlite::DBConnection;
+use flowy_user_pub::entities::WorkspaceType;
 use lib_infra::async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
@@ -17,6 +18,7 @@ pub const USER_DEVICE_ID: &str = "device_id";
 pub trait LoggedUser: Send + Sync {
   /// different user might return different workspace id.
   fn workspace_id(&self) -> FlowyResult<Uuid>;
+  fn workspace_type(&self) -> FlowyResult<WorkspaceType>;
 
   fn user_id(&self) -> FlowyResult<i64>;
   async fn is_local_mode(&self) -> FlowyResult<bool>;
@@ -28,6 +30,7 @@ pub trait LoggedUser: Send + Sync {
   fn application_root_dir(&self) -> Result<PathBuf, FlowyError>;
 }
 
+//
 pub struct AIUserServiceImpl(pub Weak<dyn LoggedUser>);
 
 impl AIUserServiceImpl {
@@ -51,6 +54,10 @@ impl AIUserService for AIUserServiceImpl {
 
   fn workspace_id(&self) -> Result<Uuid, FlowyError> {
     self.logged_user()?.workspace_id()
+  }
+
+  fn workspace_type(&self) -> FlowyResult<WorkspaceType> {
+    self.logged_user()?.workspace_type()
   }
 
   fn sqlite_connection(&self, uid: i64) -> Result<DBConnection, FlowyError> {

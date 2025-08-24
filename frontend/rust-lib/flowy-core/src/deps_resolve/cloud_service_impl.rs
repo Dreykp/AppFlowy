@@ -31,6 +31,10 @@ use flowy_folder_pub::cloud::{
 use flowy_folder_pub::entities::PublishPayload;
 use flowy_search_pub::cloud::SearchCloudService;
 use flowy_server_pub::af_cloud_config::AFCloudConfiguration;
+use flowy_server_pub::guest_dto::{
+  ListSharedViewResponse, RevokeSharedViewAccessRequest, ShareViewWithGuestRequest,
+  SharedViewDetails,
+};
 use flowy_storage_pub::cloud::{ObjectIdentity, ObjectValue, StorageCloudService};
 use flowy_storage_pub::storage::{CompletedPartRequest, CreateUploadResponse, UploadPartResponse};
 use flowy_user_pub::cloud::{UserCloudService, UserCloudServiceProvider};
@@ -161,6 +165,7 @@ impl StorageCloudService for ServerProvider {
 impl UserCloudServiceProvider for ServerProvider {
   fn set_token(&self, token: &str) -> Result<(), FlowyError> {
     let server = self.get_server()?;
+    info!("Set token");
     server.set_token(token)?;
     Ok(())
   }
@@ -191,8 +196,12 @@ impl UserCloudServiceProvider for ServerProvider {
   /// to create a new [AppFlowyServer] if it doesn't exist. Once the [AuthType] is set,
   /// it will be used when user open the app again.
   ///
-  fn set_server_auth_type(&self, auth_type: &AuthType) {
+  fn set_server_auth_type(&self, auth_type: &AuthType, token: Option<String>) -> FlowyResult<()> {
     self.set_auth_type(*auth_type);
+    if let Some(token) = token {
+      self.set_token(&token)?;
+    }
+    Ok(())
   }
 
   fn get_server_auth_type(&self) -> AuthType {
@@ -397,6 +406,54 @@ impl FolderCloudService for ServerProvider {
       .get_server()?
       .folder_service()
       .import_zip(file_path)
+      .await
+  }
+
+  async fn share_page_with_user(
+    &self,
+    workspace_id: &Uuid,
+    params: ShareViewWithGuestRequest,
+  ) -> Result<(), FlowyError> {
+    self
+      .get_server()?
+      .folder_service()
+      .share_page_with_user(workspace_id, params)
+      .await
+  }
+
+  async fn revoke_shared_page_access(
+    &self,
+    workspace_id: &Uuid,
+    view_id: &Uuid,
+    params: RevokeSharedViewAccessRequest,
+  ) -> Result<(), FlowyError> {
+    self
+      .get_server()?
+      .folder_service()
+      .revoke_shared_page_access(workspace_id, view_id, params)
+      .await
+  }
+
+  async fn get_shared_page_details(
+    &self,
+    workspace_id: &Uuid,
+    view_id: &Uuid,
+  ) -> Result<SharedViewDetails, FlowyError> {
+    self
+      .get_server()?
+      .folder_service()
+      .get_shared_page_details(workspace_id, view_id)
+      .await
+  }
+
+  async fn get_shared_views(
+    &self,
+    workspace_id: &Uuid,
+  ) -> Result<ListSharedViewResponse, FlowyError> {
+    self
+      .get_server()?
+      .folder_service()
+      .get_shared_views(workspace_id)
       .await
   }
 }
@@ -653,12 +710,13 @@ impl ChatCloudService for ServerProvider {
     chat_id: &Uuid,
     message: &str,
     message_type: ChatMessageType,
+    prompt_id: Option<String>,
   ) -> Result<ChatMessage, FlowyError> {
     let message = message.to_string();
     self
       .get_server()?
       .chat_service()
-      .create_question(workspace_id, chat_id, &message, message_type)
+      .create_question(workspace_id, chat_id, &message, message_type, prompt_id)
       .await
   }
 
@@ -683,7 +741,7 @@ impl ChatCloudService for ServerProvider {
     chat_id: &Uuid,
     question_id: i64,
     format: ResponseFormat,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamAnswer, FlowyError> {
     let server = self.get_server()?;
     server
@@ -724,7 +782,7 @@ impl ChatCloudService for ServerProvider {
     workspace_id: &Uuid,
     chat_id: &Uuid,
     message_id: i64,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<RepeatedRelatedQuestion, FlowyError> {
     self
       .get_server()?
@@ -750,7 +808,7 @@ impl ChatCloudService for ServerProvider {
     &self,
     workspace_id: &Uuid,
     params: CompleteTextParams,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamComplete, FlowyError> {
     let server = self.get_server()?;
     server
@@ -813,6 +871,18 @@ impl ChatCloudService for ServerProvider {
       .get_workspace_default_model(workspace_id)
       .await
   }
+
+  async fn set_workspace_default_model(
+    &self,
+    workspace_id: &Uuid,
+    model: &str,
+  ) -> Result<(), FlowyError> {
+    self
+      .get_server()?
+      .chat_service()
+      .set_workspace_default_model(workspace_id, model)
+      .await
+  }
 }
 
 #[async_trait]
@@ -823,7 +893,7 @@ impl SearchCloudService for ServerProvider {
     query: String,
   ) -> Result<Vec<SearchDocumentResponseItem>, FlowyError> {
     let server = self.get_server()?;
-    match server.search_service() {
+    match server.search_service().await {
       Some(search_service) => search_service.document_search(workspace_id, query).await,
       None => Err(FlowyError::internal().with_context("SearchCloudService not found")),
     }
@@ -836,7 +906,7 @@ impl SearchCloudService for ServerProvider {
     search_results: Vec<SearchResult>,
   ) -> Result<SearchSummaryResult, FlowyError> {
     let server = self.get_server()?;
-    match server.search_service() {
+    match server.search_service().await {
       Some(search_service) => {
         search_service
           .generate_search_summary(workspace_id, query, search_results)

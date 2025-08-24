@@ -6,11 +6,11 @@ use collab::preclude::CollabPlugin;
 use collab_document::blocks::DocumentData;
 use collab_document::document::Document;
 use collab_document::document_data::default_document_data;
+use collab_integrate::CollabKVDB;
 use collab_integrate::collab_builder::{
   AppFlowyCollabBuilder, CollabCloudPluginProvider, CollabPluginProviderContext,
   CollabPluginProviderType, WorkspaceCollabIntegrate,
 };
-use collab_integrate::CollabKVDB;
 use flowy_document::entities::{DocumentSnapshotData, DocumentSnapshotMeta};
 use flowy_document::manager::{DocumentManager, DocumentSnapshotService, DocumentUserService};
 use flowy_document_pub::cloud::*;
@@ -21,10 +21,12 @@ use lib_infra::box_any::BoxAny;
 use nanoid::nanoid;
 use tempfile::TempDir;
 use tokio::sync::RwLock;
-use tracing_subscriber::{fmt::Subscriber, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt::Subscriber, util::SubscriberInitExt};
 use uuid::Uuid;
 
 pub struct DocumentTest {
+  #[allow(dead_code)]
+  builder: Arc<AppFlowyCollabBuilder>,
   inner: DocumentManager,
 }
 
@@ -40,16 +42,20 @@ impl DocumentTest {
       WorkspaceCollabIntegrateImpl {
         workspace_id: user.workspace_id,
       },
+      None,
     ));
 
     let manager = DocumentManager::new(
       Arc::new(user),
-      builder,
+      Arc::downgrade(&builder),
       cloud_service,
       Arc::downgrade(&file_storage),
       document_snapshot,
     );
-    Self { inner: manager }
+    Self {
+      inner: manager,
+      builder,
+    }
   }
 }
 
@@ -103,7 +109,9 @@ impl DocumentUserService for FakeUser {
 pub fn setup_log() {
   static START: OnceLock<()> = OnceLock::new();
   START.get_or_init(|| {
-    std::env::set_var("RUST_LOG", "collab_persistence=trace");
+    unsafe {
+      std::env::set_var("RUST_LOG", "collab_persistence=trace");
+    }
     let subscriber = Subscriber::builder()
       .with_env_filter(EnvFilter::from_default_env())
       .with_ansi(true)

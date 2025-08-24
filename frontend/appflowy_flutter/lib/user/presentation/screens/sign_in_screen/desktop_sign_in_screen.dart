@@ -14,12 +14,19 @@ import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:universal_platform/universal_platform.dart';
+import 'package:window_manager/window_manager.dart';
 
-class DesktopSignInScreen extends StatelessWidget {
+class DesktopSignInScreen extends StatefulWidget {
   const DesktopSignInScreen({
     super.key,
   });
 
+  @override
+  State<DesktopSignInScreen> createState() => _DesktopSignInScreenState();
+}
+
+class _DesktopSignInScreenState extends State<DesktopSignInScreen>
+    with WindowListener {
   @override
   Widget build(BuildContext context) {
     final theme = AppFlowyTheme.of(context);
@@ -87,6 +94,13 @@ class DesktopSignInScreen extends StatelessWidget {
           : const MoveWindowDetector(),
     );
   }
+
+  @override
+  void onWindowFocus() {
+    // https://pub.dev/packages/window_manager#windows
+    // must call setState once when the window is focused
+    setState(() {});
+  }
 }
 
 class DesktopSignInSettingsButton extends StatelessWidget {
@@ -128,10 +142,7 @@ class _OrDivider extends StatelessWidget {
     return Row(
       children: [
         Flexible(
-          child: Divider(
-            thickness: 1,
-            color: theme.borderColorScheme.greyTertiary,
-          ),
+          child: AFDivider(),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -143,10 +154,7 @@ class _OrDivider extends StatelessWidget {
           ),
         ),
         Flexible(
-          child: Divider(
-            thickness: 1,
-            color: theme.borderColorScheme.greyTertiary,
-          ),
+          child: AFDivider(),
         ),
       ],
     );

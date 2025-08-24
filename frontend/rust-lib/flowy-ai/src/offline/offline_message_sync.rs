@@ -1,13 +1,13 @@
-use crate::ai_manager::AIUserService;
 use flowy_ai_pub::cloud::{
   AIModel, ChatCloudService, ChatMessage, ChatMessageType, ChatSettings, CompleteTextParams,
   MessageCursor, ModelList, RepeatedChatMessage, RepeatedRelatedQuestion, ResponseFormat,
   StreamAnswer, StreamComplete, UpdateChatParams,
 };
 use flowy_ai_pub::persistence::{
-  update_chat_is_sync, update_chat_message_is_sync, upsert_chat, upsert_chat_messages,
-  ChatMessageTable, ChatTable,
+  ChatMessageTable, ChatTable, update_chat_is_sync, update_chat_message_is_sync, upsert_chat,
+  upsert_chat_messages,
 };
+use flowy_ai_pub::user_service::AIUserService;
 use flowy_error::FlowyError;
 use lib_infra::async_trait::async_trait;
 use serde_json::Value;
@@ -96,10 +96,11 @@ impl ChatCloudService for AutoSyncChatService {
     chat_id: &Uuid,
     message: &str,
     message_type: ChatMessageType,
+    prompt_id: Option<String>,
   ) -> Result<ChatMessage, FlowyError> {
     let message = self
       .cloud_service
-      .create_question(workspace_id, chat_id, message, message_type)
+      .create_question(workspace_id, chat_id, message, message_type, prompt_id)
       .await?;
     self.upsert_message(chat_id, message.clone(), true).await?;
     // TODO: implement background sync
@@ -133,7 +134,7 @@ impl ChatCloudService for AutoSyncChatService {
     chat_id: &Uuid,
     question_id: i64,
     format: ResponseFormat,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamAnswer, FlowyError> {
     self
       .cloud_service
@@ -187,7 +188,7 @@ impl ChatCloudService for AutoSyncChatService {
     workspace_id: &Uuid,
     chat_id: &Uuid,
     message_id: i64,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<RepeatedRelatedQuestion, FlowyError> {
     self
       .cloud_service
@@ -199,7 +200,7 @@ impl ChatCloudService for AutoSyncChatService {
     &self,
     workspace_id: &Uuid,
     params: CompleteTextParams,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamComplete, FlowyError> {
     self
       .cloud_service
@@ -253,6 +254,17 @@ impl ChatCloudService for AutoSyncChatService {
     self
       .cloud_service
       .get_workspace_default_model(workspace_id)
+      .await
+  }
+
+  async fn set_workspace_default_model(
+    &self,
+    workspace_id: &Uuid,
+    model: &str,
+  ) -> Result<(), FlowyError> {
+    self
+      .cloud_service
+      .set_workspace_default_model(workspace_id, model)
       .await
   }
 }

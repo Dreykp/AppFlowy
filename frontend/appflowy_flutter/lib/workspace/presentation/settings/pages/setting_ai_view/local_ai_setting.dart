@@ -1,11 +1,13 @@
+import 'package:appflowy/core/helpers/url_launcher.dart';
+import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/workspace/application/settings/ai/local_ai_bloc.dart';
 import 'package:appflowy/workspace/presentation/widgets/dialogs.dart';
 import 'package:appflowy/workspace/presentation/widgets/toggle/toggle.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:expandable/expandable.dart';
-import 'package:flowy_infra_ui/style_widget/text.dart';
-import 'package:flowy_infra_ui/widget/spacing.dart';
+import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -47,7 +49,6 @@ class _LocalAISettingState extends State<LocalAISetting> {
             ),
             header: LocalAiSettingHeader(
               isEnabled: state.isEnabled,
-              isToggleable: state is ReadyLocalAiPluginState,
             ),
             collapsed: const SizedBox.shrink(),
             expanded: Padding(
@@ -65,22 +66,47 @@ class LocalAiSettingHeader extends StatelessWidget {
   const LocalAiSettingHeader({
     super.key,
     required this.isEnabled,
-    required this.isToggleable,
   });
 
   final bool isEnabled;
-  final bool isToggleable;
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
+
     return Row(
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FlowyText.medium(
-                LocaleKeys.settings_aiPage_keys_localAIToggleTitle.tr(),
+              Row(
+                children: [
+                  Text(
+                    LocaleKeys.settings_aiPage_keys_localAIToggleTitle.tr(),
+                    style: theme.textStyle.body.enhanced(
+                      color: theme.textColorScheme.primary,
+                    ),
+                  ),
+                  HSpace(theme.spacing.s),
+                  FlowyTooltip(
+                    message: LocaleKeys.workspace_learnMore.tr(),
+                    child: AFGhostButton.normal(
+                      padding: EdgeInsets.zero,
+                      builder: (context, isHovering, disabled) {
+                        return FlowySvg(
+                          FlowySvgs.ai_explain_m,
+                          size: Size.square(20),
+                        );
+                      },
+                      onTap: () {
+                        afLaunchUrlString(
+                          'https://appflowy.com/guide/appflowy-local-ai-ollama',
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
               const VSpace(4),
               FlowyText(
@@ -91,36 +117,32 @@ class LocalAiSettingHeader extends StatelessWidget {
             ],
           ),
         ),
-        IgnorePointer(
-          ignoring: !isToggleable,
-          child: Opacity(
-            opacity: isToggleable ? 1 : 0.5,
-            child: Toggle(
-              value: isEnabled,
-              onChanged: (_) => _onToggleChanged(context),
-            ),
-          ),
+        Toggle(
+          value: isEnabled,
+          onChanged: (value) {
+            _onToggleChanged(value, context);
+          },
         ),
       ],
     );
   }
 
-  void _onToggleChanged(BuildContext context) {
-    if (isEnabled) {
+  void _onToggleChanged(bool value, BuildContext context) {
+    if (value) {
+      context.read<LocalAiPluginBloc>().add(const LocalAiPluginEvent.toggle());
+    } else {
       showConfirmDialog(
         context: context,
         title: LocaleKeys.settings_aiPage_keys_disableLocalAITitle.tr(),
         description:
             LocaleKeys.settings_aiPage_keys_disableLocalAIDescription.tr(),
         confirmLabel: LocaleKeys.button_confirm.tr(),
-        onConfirm: () {
+        onConfirm: (_) {
           context
               .read<LocalAiPluginBloc>()
               .add(const LocalAiPluginEvent.toggle());
         },
       );
-    } else {
-      context.read<LocalAiPluginBloc>().add(const LocalAiPluginEvent.toggle());
     }
   }
 }

@@ -68,10 +68,13 @@ Map<String, BlockComponentBuilder> buildBlockComponentBuilders({
   bool editable = true,
   ShowPlaceholder? showParagraphPlaceholder,
   String Function(Node)? placeholderText,
-  EdgeInsets? customHeadingPadding,
+  EdgeInsets Function(Node node)? customPadding,
   bool alwaysDistributeSimpleTableColumnWidths = false,
 }) {
-  final configuration = _buildDefaultConfiguration(context);
+  final configuration = _buildDefaultConfiguration(
+    context,
+    padding: customPadding,
+  );
   final builders = _buildBlockComponentBuilderMap(
     context,
     configuration: configuration,
@@ -81,6 +84,7 @@ Map<String, BlockComponentBuilder> buildBlockComponentBuilders({
     placeholderText: placeholderText,
     alwaysDistributeSimpleTableColumnWidths:
         alwaysDistributeSimpleTableColumnWidths,
+    customHeadingPadding: customPadding,
   );
 
   // customize the action builder. actually, we can customize them in their own builder. Put them here just for convenience.
@@ -97,7 +101,10 @@ Map<String, BlockComponentBuilder> buildBlockComponentBuilders({
   return builders;
 }
 
-BlockComponentConfiguration _buildDefaultConfiguration(BuildContext context) {
+BlockComponentConfiguration _buildDefaultConfiguration(
+  BuildContext context, {
+  EdgeInsets Function(Node node)? padding,
+}) {
   final configuration = BlockComponentConfiguration(
     padding: (node) {
       if (UniversalPlatform.isMobile) {
@@ -117,7 +124,7 @@ BlockComponentConfiguration _buildDefaultConfiguration(BuildContext context) {
             right: EditorStyleCustomizer.nodeHorizontalPadding,
           );
         }
-        return edgeInsets;
+        return padding?.call(node) ?? edgeInsets;
       }
 
       return const EdgeInsets.symmetric(vertical: 5.0);
@@ -291,7 +298,7 @@ Map<String, BlockComponentBuilder> _buildBlockComponentBuilderMap(
   required EditorStyleCustomizer styleCustomizer,
   ShowPlaceholder? showParagraphPlaceholder,
   String Function(Node)? placeholderText,
-  EdgeInsets? customHeadingPadding,
+  EdgeInsets Function(Node)? customHeadingPadding,
   bool alwaysDistributeSimpleTableColumnWidths = false,
 }) {
   final customBlockComponentBuilderMap = {
@@ -635,7 +642,7 @@ HeadingBlockComponentBuilder _buildHeadingBlockComponentBuilder(
   BuildContext context,
   BlockComponentConfiguration configuration,
   EditorStyleCustomizer styleCustomizer,
-  EdgeInsets? customHeadingPadding,
+  EdgeInsets Function(Node)? customHeadingPadding,
 ) {
   return HeadingBlockComponentBuilder(
     configuration: configuration.copyWith(
@@ -647,7 +654,7 @@ HeadingBlockComponentBuilder _buildHeadingBlockComponentBuilder(
       ),
       padding: (node) {
         if (customHeadingPadding != null) {
-          return customHeadingPadding;
+          return customHeadingPadding.call(node);
         }
 
         if (UniversalPlatform.isMobile) {
@@ -896,13 +903,13 @@ ToggleListBlockComponentBuilder _buildToggleListBlockComponentBuilder(
   BuildContext context,
   BlockComponentConfiguration configuration,
   EditorStyleCustomizer styleCustomizer,
-  EdgeInsets? customHeadingPadding,
+  EdgeInsets Function(Node)? customHeadingPadding,
 ) {
   return ToggleListBlockComponentBuilder(
     configuration: configuration.copyWith(
       padding: (node) {
         if (customHeadingPadding != null) {
-          return customHeadingPadding;
+          return customHeadingPadding(node);
         }
 
         if (UniversalPlatform.isMobile) {

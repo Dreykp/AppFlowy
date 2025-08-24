@@ -1,15 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
+import 'package:appflowy/features/workspace/logic/workspace_bloc.dart';
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/workspace/application/command_palette/command_palette_bloc.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flowy_infra/size.dart';
-import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/style_widget/text_field.dart';
 import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
-import 'package:flowy_infra_ui/widget/spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class SearchField extends StatefulWidget {
@@ -59,117 +57,90 @@ class _SearchFieldState extends State<SearchField> {
   }
 
   Widget _buildSuffixIcon(BuildContext context) {
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
-      builder: (context, value, _) {
-        final hasText = value.text.trim().isNotEmpty;
-        final clearIcon = Container(
-          padding: const EdgeInsets.all(1),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AFThemeExtension.of(context).lightGreyHover,
+    final theme = AppFlowyTheme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(left: theme.spacing.m, right: theme.spacing.l),
+      child: FlowyTooltip(
+        message: LocaleKeys.commandPalette_clearSearchTooltip.tr(),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _clearSearch,
+            child: SizedBox.square(
+              dimension: 28,
+              child: Center(
+                child: FlowySvg(
+                  FlowySvgs.search_clear_m,
+                  color: AppFlowyTheme.of(context).iconColorScheme.tertiary,
+                  size: const Size.square(20),
+                ),
+              ),
+            ),
           ),
-          child: const FlowySvg(
-            FlowySvgs.close_s,
-            size: Size.square(16),
-          ),
-        );
-        return AnimatedOpacity(
-          opacity: hasText ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 200),
-          child: hasText
-              ? FlowyTooltip(
-                  message: LocaleKeys.commandPalette_clearSearchTooltip.tr(),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: _clearSearch,
-                      child: clearIcon,
-                    ),
-                  ),
-                )
-              : clearIcon,
-        );
-      },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Cache theme and text styles
-    final theme = Theme.of(context);
-    final textStyle = theme.textTheme.bodySmall?.copyWith(fontSize: 14);
-    final hintStyle = theme.textTheme.bodySmall?.copyWith(
-      fontSize: 14,
-      color: theme.hintColor,
-    );
+    final theme = AppFlowyTheme.of(context);
+    final radius = BorderRadius.circular(theme.spacing.l);
+    final workspace =
+        context.read<UserWorkspaceBloc?>()?.state.currentWorkspace;
 
-    // Choose the leading icon based on loading state
-    final Widget leadingIcon = widget.isLoading
-        ? FlowyTooltip(
-            message: LocaleKeys.commandPalette_loadingTooltip.tr(),
-            child: const SizedBox(
-              width: 20,
-              height: 20,
-              child: Padding(
-                padding: EdgeInsets.all(3.0),
-                child: CircularProgressIndicator(strokeWidth: 2.0),
-              ),
-            ),
-          )
-        : SizedBox(
-            width: 20,
-            height: 20,
-            child: FlowySvg(
-              FlowySvgs.search_m,
-              color: theme.hintColor,
-            ),
-          );
-
-    return Row(
-      children: [
-        const HSpace(12),
-        leadingIcon,
-        Expanded(
-          child: FlowyTextField(
+    return Container(
+      height: 44,
+      margin: EdgeInsets.only(bottom: theme.spacing.m),
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) {
+          final hasText = value.text.trim().isNotEmpty;
+          return FlowyTextField(
             focusNode: focusNode,
+            cursorHeight: 22,
             controller: controller,
-            textStyle: textStyle,
+            textStyle: theme.textStyle.heading4
+                .standard(color: theme.textColorScheme.primary),
             decoration: InputDecoration(
-              constraints: const BoxConstraints(maxHeight: 48),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              enabledBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.transparent),
-                borderRadius: Corners.s8Border,
+              contentPadding:
+                  EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: theme.borderColorScheme.primary),
+                borderRadius: radius,
               ),
               isDense: false,
-              hintText: LocaleKeys.commandPalette_placeholder.tr(),
-              hintStyle: hintStyle,
-              errorStyle: theme.textTheme.bodySmall!
-                  .copyWith(color: theme.colorScheme.error),
-              suffix: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildSuffixIcon(context),
-                  const HSpace(8),
-                ],
-              ),
+              hintText: LocaleKeys.search_searchFieldHint
+                  .tr(args: ['${workspace?.name}']),
+              hintStyle: theme.textStyle.heading4
+                  .standard(color: theme.textColorScheme.tertiary),
+              hintMaxLines: 1,
               counterText: "",
-              focusedBorder: const OutlineInputBorder(
-                borderRadius: Corners.s8Border,
-                borderSide: BorderSide(color: Colors.transparent),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: radius,
+                borderSide:
+                    BorderSide(color: theme.borderColorScheme.themeThick),
               ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: Corners.s8Border,
-                borderSide: BorderSide(color: theme.colorScheme.error),
+              prefixIcon: Padding(
+                padding: const EdgeInsets.only(left: 12, right: 8),
+                child: FlowySvg(
+                  FlowySvgs.search_icon_m,
+                  color: theme.iconColorScheme.secondary,
+                  size: Size.square(20),
+                ),
               ),
+              prefixIconConstraints: BoxConstraints.loose(Size(40, 20)),
+              suffixIconConstraints:
+                  hasText ? BoxConstraints.loose(Size(48, 28)) : null,
+              suffixIcon: hasText ? _buildSuffixIcon(context) : null,
             ),
             onChanged: (value) => context
                 .read<CommandPaletteBloc>()
                 .add(CommandPaletteEvent.searchChanged(search: value)),
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 
@@ -178,5 +149,6 @@ class _SearchFieldState extends State<SearchField> {
     context
         .read<CommandPaletteBloc>()
         .add(const CommandPaletteEvent.clearSearch());
+    focusNode.requestFocus();
   }
 }

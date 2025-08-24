@@ -1,10 +1,10 @@
 import 'package:appflowy/core/helpers/url_launcher.dart';
+import 'package:appflowy/features/workspace/logic/workspace_bloc.dart';
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/plugins/shared/share/constants.dart';
 import 'package:appflowy/shared/af_role_pb_extension.dart';
 import 'package:appflowy/shared/colors.dart';
-import 'package:appflowy/workspace/application/user/user_workspace_bloc.dart';
 import 'package:appflowy/workspace/presentation/settings/pages/sites/constants.dart';
 import 'package:appflowy/workspace/presentation/settings/pages/sites/domain/domain_more_action.dart';
 import 'package:appflowy/workspace/presentation/settings/pages/sites/domain/home_page_menu.dart';
@@ -236,7 +236,7 @@ class _FreePlanUpgradeButton extends StatelessWidget {
     return Container(
       alignment: Alignment.centerLeft,
       child: FlowyTooltip(
-        message: LocaleKeys.settings_sites_namespace_upgradeToPro.tr(),
+        message: LocaleKeys.settings_sites_homePage_upgradeToPro.tr(),
         child: PrimaryRoundedButton(
           text: 'Pro ↗',
           fontSize: 12.0,
@@ -255,7 +255,7 @@ class _FreePlanUpgradeButton extends StatelessWidget {
               showToastNotification(
                 message:
                     LocaleKeys.settings_sites_namespace_redirectToPayment.tr(),
-                type: ToastificationType.info,
+                type: ToastificationType.error,
               );
 
               context.read<SettingsSitesBloc>().add(
@@ -266,7 +266,7 @@ class _FreePlanUpgradeButton extends StatelessWidget {
                 message: LocaleKeys
                     .settings_sites_namespace_pleaseAskOwnerToSetHomePage
                     .tr(),
-                type: ToastificationType.info,
+                type: ToastificationType.error,
               );
             }
           },

@@ -1,46 +1,58 @@
 use crate::entities::icon::UpdateViewIconParams;
 use crate::entities::{
-  view_pb_with_child_views, view_pb_without_child_views, view_pb_without_child_views_from_arc,
-  CreateViewParams, DeletedViewPB, DuplicateViewParams, FolderSnapshotPB, MoveNestedViewParams,
-  RepeatedTrashPB, RepeatedViewIdPB, RepeatedViewPB, UpdateViewParams, ViewLayoutPB, ViewPB,
-  ViewSectionPB, WorkspaceLatestPB, WorkspacePB,
+  AFAccessLevelPB, AFRolePB, CreateViewParams, DeletedViewPB, DuplicateViewParams,
+  FolderSnapshotPB, MoveNestedViewParams, RepeatedSharedUserPB, RepeatedSharedViewResponsePB,
+  RepeatedTrashPB, RepeatedViewIdPB, RepeatedViewPB, SharedUserPB, SharedViewPB,
+  SharedViewSectionPB, UpdateViewParams, ViewLayoutPB, ViewPB, ViewSectionPB, WorkspaceLatestPB,
+  WorkspacePB, view_pb_with_all_child_views, view_pb_with_child_views, view_pb_without_child_views,
+  view_pb_without_child_views_from_arc,
 };
 use crate::manager_observer::{
-  notify_child_views_changed, notify_did_update_workspace, notify_parent_view_did_change,
-  ChildViewChangeReason,
+  ChildViewChangeReason, notify_child_views_changed, notify_did_update_workspace,
+  notify_parent_view_did_change,
 };
-use crate::notification::{
-  folder_notification_builder, send_current_workspace_notification, FolderNotification,
-};
+use crate::notification::{FolderNotification, folder_notification_builder};
 use crate::publish_util::{generate_publish_name, view_pb_to_publish_view};
 use crate::share::{ImportData, ImportItem, ImportParams};
 use crate::util::{folder_not_init_error, workspace_data_not_sync_error};
 use crate::view_operation::{
-  create_view, FolderOperationHandler, FolderOperationHandlers, GatherEncodedCollab, ViewData,
+  FolderOperationHandler, FolderOperationHandlers, GatherEncodedCollab, ViewData, create_view,
 };
 use arc_swap::ArcSwapOption;
+use client_api::entity::guest_dto::{
+  RevokeSharedViewAccessRequest, ShareViewWithGuestRequest, SharedUser, SharedViewDetails,
+};
 use client_api::entity::workspace_dto::PublishInfoView;
-use client_api::entity::PublishInfo;
-use collab::core::collab::DataSource;
+use client_api::entity::{AFAccessLevel, AFRole, PublishInfo};
+use collab::core::collab::{DataSource, IndexContentReceiver};
 use collab::lock::RwLock;
 use collab_entity::{CollabType, EncodedCollab};
+use collab_folder::folder_diff::FolderViewChange;
 use collab_folder::hierarchy_builder::{ParentChildViews, ViewExtraBuilder};
 use collab_folder::{
-  Folder, FolderData, FolderNotify, Section, SectionItem, TrashInfo, View, ViewLayout, ViewUpdate,
-  Workspace,
+  Folder, FolderData, FolderNotify, Section, SectionItem, SpacePermission, TrashInfo, View,
+  ViewLayout, ViewUpdate, Workspace,
 };
+use collab_integrate::CollabKVDB;
 use collab_integrate::collab_builder::{
   AppFlowyCollabBuilder, CollabBuilderConfig, CollabPersistenceImpl,
 };
-use collab_integrate::CollabKVDB;
-use flowy_error::{internal_error, ErrorCode, FlowyError, FlowyResult};
-use flowy_folder_pub::cloud::{gen_view_id, FolderCloudService, FolderCollabParams};
+use flowy_error::{ErrorCode, FlowyError, FlowyResult, internal_error};
+use flowy_folder_pub::cloud::{FolderCloudService, FolderCollabParams, gen_view_id};
 use flowy_folder_pub::entities::{
   PublishDatabaseData, PublishDatabasePayload, PublishDocumentPayload, PublishPayload,
   PublishViewInfo, PublishViewMeta, PublishViewMetaData,
 };
-use flowy_search_pub::entities::FolderIndexManager;
+use flowy_folder_pub::sql::workspace_shared_user_sql::{
+  WorkspaceSharedUserTable, delete_workspace_shared_user, replace_all_workspace_shared_users,
+  select_all_workspace_shared_users,
+};
+use flowy_folder_pub::sql::workspace_shared_view_sql::{
+  WorkspaceSharedViewTable, replace_all_workspace_shared_views, select_all_workspace_shared_views,
+};
+use flowy_sqlite::DBConnection;
 use flowy_sqlite::kv::KVStorePreferences;
+use flowy_user_pub::entities::{Role, UserWorkspace};
 use futures::future;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -54,8 +66,9 @@ pub trait FolderUser: Send + Sync {
   fn user_id(&self) -> Result<i64, FlowyError>;
   fn workspace_id(&self) -> Result<Uuid, FlowyError>;
   fn collab_db(&self, uid: i64) -> Result<Weak<CollabKVDB>, FlowyError>;
-
+  fn sqlite_connection(&self, uid: i64) -> Result<DBConnection, FlowyError>;
   fn is_folder_exist_on_disk(&self, uid: i64, workspace_id: &Uuid) -> FlowyResult<bool>;
+  fn get_active_user_workspace(&self) -> FlowyResult<UserWorkspace>;
 }
 
 pub struct FolderManager {
@@ -63,30 +76,47 @@ pub struct FolderManager {
   pub(crate) collab_builder: Arc<AppFlowyCollabBuilder>,
   pub(crate) user: Arc<dyn FolderUser>,
   pub(crate) operation_handlers: FolderOperationHandlers,
-  pub cloud_service: Arc<dyn FolderCloudService>,
-  pub(crate) folder_indexer: Arc<dyn FolderIndexManager>,
+  pub cloud_service: Weak<dyn FolderCloudService>,
   pub(crate) store_preferences: Arc<KVStorePreferences>,
+  pub(crate) folder_ready_notifier: tokio::sync::watch::Sender<bool>,
+}
+
+impl Drop for FolderManager {
+  fn drop(&mut self) {
+    tracing::trace!("[Drop] drop folder manager");
+  }
 }
 
 impl FolderManager {
   pub fn new(
     user: Arc<dyn FolderUser>,
     collab_builder: Arc<AppFlowyCollabBuilder>,
-    cloud_service: Arc<dyn FolderCloudService>,
-    folder_indexer: Arc<dyn FolderIndexManager>,
+    cloud_service: Weak<dyn FolderCloudService>,
     store_preferences: Arc<KVStorePreferences>,
   ) -> FlowyResult<Self> {
+    let (folder_ready_notifier, _) = tokio::sync::watch::channel(false);
     let manager = Self {
       user,
       mutex_folder: Default::default(),
       collab_builder,
       operation_handlers: Default::default(),
       cloud_service,
-      folder_indexer,
       store_preferences,
+      folder_ready_notifier,
     };
 
     Ok(manager)
+  }
+
+  pub fn subscribe_folder_ready_notifier(&self) -> tokio::sync::watch::Receiver<bool> {
+    self.folder_ready_notifier.subscribe()
+  }
+
+  pub fn cloud_service(&self) -> FlowyResult<Arc<dyn FolderCloudService>> {
+    self
+      .cloud_service
+      .upgrade()
+      .ok_or_else(FlowyError::ref_drop)
   }
 
   pub fn register_operation_handler(
@@ -298,6 +328,43 @@ impl FolderManager {
     self.initialize_after_sign_in(uid, data_source).await
   }
 
+  pub async fn subscribe_folder_change_rx(&self) -> FlowyResult<IndexContentReceiver> {
+    let folder = self
+      .mutex_folder
+      .load_full()
+      .ok_or_else(folder_not_init_error)?;
+    let read_guard = folder.read().await;
+    Ok(read_guard.subscribe_index_content())
+  }
+
+  pub async fn consumer_recent_workspace_changes(&self) -> FlowyResult<Vec<FolderViewChange>> {
+    let folder = self
+      .mutex_folder
+      .load_full()
+      .ok_or_else(folder_not_init_error)?;
+    let workspace_id = self.user.workspace_id()?.to_string();
+    let encoded_collab = self
+      .store_preferences
+      .get_object::<EncodedCollab>(&workspace_id);
+
+    if encoded_collab.is_none() {
+      return Ok(vec![]);
+    }
+
+    let folder = folder.read().await;
+    let changes = folder.calculate_view_changes(encoded_collab.unwrap())?;
+
+    let encoded_collab = folder.encode_collab();
+    if let Ok(encoded) = encoded_collab {
+      let _ = self.store_preferences.set_object(&workspace_id, &encoded);
+    }
+    Ok(changes)
+  }
+
+  pub async fn on_workspace_deleted(&self, _uid: i64, _workspace_id: &Uuid) -> FlowyResult<()> {
+    Ok(())
+  }
+
   /// Initialize the folder for the new user.
   /// Using the [DefaultFolderBuilder] to create the default workspace for the new user.
   #[instrument(level = "info", skip_all, err)]
@@ -317,16 +384,15 @@ impl FolderManager {
       // The folder updates should not be empty, as the folder data is stored
       // when the user signs up for the first time.
       let result = self
-        .cloud_service
+        .cloud_service()?
         .get_folder_doc_state(workspace_id, user_id, CollabType::Folder, workspace_id)
-        .await
-        .map_err(FlowyError::from);
+        .await;
 
       match result {
         Ok(folder_doc_state) => {
           info!(
             "Get folder updates via {}, doc state len: {}",
-            self.cloud_service.service_name(),
+            self.cloud_service()?.service_name(),
             folder_doc_state.len()
           );
           self
@@ -603,6 +669,24 @@ impl FolderManager {
   /// again using the ID of the child view you wish to access.
   #[tracing::instrument(level = "debug", skip(self))]
   pub async fn get_view_pb(&self, view_id: &str) -> FlowyResult<ViewPB> {
+    let workspace = self.user.get_active_user_workspace()?;
+    let role = workspace.role;
+
+    // If the user is a Guest, check if they have access to this view through shared views
+    if let Some(Role::Guest) = role {
+      let flatten_shared_views = self.get_flatten_shared_pages().await?;
+      let has_access = flatten_shared_views
+        .iter()
+        .any(|shared_view| shared_view.id == view_id);
+
+      if !has_access {
+        return Err(FlowyError::new(
+          ErrorCode::RecordNotFound,
+          format!("Guest user does not have access to view: {}", view_id),
+        ));
+      }
+    }
+
     let view_id = view_id.to_string();
 
     let lock = self
@@ -1079,7 +1163,7 @@ impl FolderManager {
         return Err(
           FlowyError::record_not_found()
             .with_context(format!("Can't duplicate the view({})", view_id)),
-        )
+        );
       },
       Some(lock) => lock,
     };
@@ -1202,7 +1286,7 @@ impl FolderManager {
     // Sync the view to the cloud
     if sync_after_create {
       self
-        .cloud_service
+        .cloud_service()?
         .batch_create_folder_collab_objects(&workspace_id, objects)
         .await?;
     }
@@ -1242,7 +1326,9 @@ impl FolderManager {
       workspace_id: workspace_id.to_string(),
       latest_view: view,
     };
-    send_current_workspace_notification(FolderNotification::DidUpdateWorkspaceSetting, setting);
+    folder_notification_builder(workspace_id, FolderNotification::DidUpdateWorkspaceSetting)
+      .payload(setting)
+      .send();
     Ok(())
   }
 
@@ -1297,6 +1383,229 @@ impl FolderManager {
     Ok(())
   }
 
+  /// Share the page with a user (member or guest).
+  pub async fn share_page_with_user(
+    &self,
+    params: ShareViewWithGuestRequest,
+  ) -> Result<(), FlowyError> {
+    let workspace_id = self.user.workspace_id()?;
+    let view_id = params.view_id;
+
+    self
+      .cloud_service()?
+      .share_page_with_user(&workspace_id, params)
+      .await?;
+
+    let cloud_workspace_id = workspace_id;
+    let cloud_page_id = view_id;
+    let user = self.user.clone();
+    let cloud_service = self.cloud_service.clone();
+    tokio::spawn(async move {
+      if let Some(cloud_service) = cloud_service.upgrade() {
+        if let Ok(details) = cloud_service
+          .get_shared_page_details(&cloud_workspace_id, &cloud_page_id)
+          .await
+        {
+          if let Ok(uid) = user.user_id() {
+            if let Ok(mut conn) = user.sqlite_connection(uid) {
+              let shared_users = details
+                .shared_with
+                .iter()
+                .enumerate()
+                .map(|(order, user)| {
+                  WorkspaceSharedUserTable::new(
+                    cloud_workspace_id.to_string(),
+                    cloud_page_id.to_string(),
+                    user.email.clone(),
+                    user.name.clone(),
+                    user.avatar_url.clone().unwrap_or_default(),
+                    user.role.clone() as i32,
+                    user.access_level as i32,
+                    order as i32,
+                  )
+                })
+                .collect::<Vec<_>>();
+
+              let _ = replace_all_workspace_shared_users(
+                &mut conn,
+                &cloud_workspace_id.to_string(),
+                &cloud_page_id.to_string(),
+                &shared_users,
+              );
+
+              // Notify UI to refresh the shared page details
+              folder_notification_builder(
+                cloud_page_id.to_string(),
+                FolderNotification::DidUpdateSharedUsers,
+              )
+              .payload(RepeatedSharedUserPB {
+                items: details
+                  .shared_with
+                  .into_iter()
+                  .map(|user| user.into())
+                  .collect(),
+              })
+              .send();
+            }
+          }
+        }
+      }
+    });
+
+    Ok(())
+  }
+
+  /// Revoke the shared page access of a user (member or guest).
+  pub async fn revoke_shared_page_access(
+    &self,
+    page_id: &Uuid,
+    params: RevokeSharedViewAccessRequest,
+  ) -> Result<(), FlowyError> {
+    let workspace_id = self.user.workspace_id()?;
+    let emails_to_revoke = params.emails.clone();
+
+    self
+      .cloud_service()?
+      .revoke_shared_page_access(&workspace_id, page_id, params)
+      .await?;
+
+    let uid = self.user.user_id()?;
+    let mut conn = self.user.sqlite_connection(uid)?;
+
+    for email in emails_to_revoke {
+      let _ = delete_workspace_shared_user(
+        &mut conn,
+        &workspace_id.to_string(),
+        &page_id.to_string(),
+        &email,
+      );
+    }
+
+    if let Ok(updated_shared_users) = select_all_workspace_shared_users(
+      self.user.sqlite_connection(uid)?,
+      &workspace_id.to_string(),
+      &page_id.to_string(),
+    ) {
+      let updated_users_pb: Vec<SharedUserPB> = updated_shared_users
+        .into_iter()
+        .map(|user| user.into())
+        .collect();
+
+      // Notify UI to refresh the shared page details
+      folder_notification_builder(
+        page_id.to_string(),
+        FolderNotification::DidUpdateSharedUsers,
+      )
+      .payload(RepeatedSharedUserPB {
+        items: updated_users_pb,
+      })
+      .send();
+    }
+
+    Ok(())
+  }
+
+  /// Get the shared page details.
+  pub async fn get_shared_page_details(
+    &self,
+    page_id: &Uuid,
+  ) -> Result<SharedViewDetails, FlowyError> {
+    let workspace_id = self.user.workspace_id()?;
+    let uid = self.user.user_id()?;
+    let conn = self.user.sqlite_connection(uid)?;
+
+    let mut local_shared_details = None;
+
+    // 1. Get the data from the local database first
+    if let Ok(shared_details) =
+      select_all_workspace_shared_users(conn, &workspace_id.to_string(), &page_id.to_string())
+    {
+      let shared_with = shared_details
+        .into_iter()
+        .map(|user| SharedUser {
+          email: user.email,
+          name: user.name,
+          access_level: AFAccessLevel::from(AFAccessLevelPB::from(user.access_level)),
+          role: AFRole::from(AFRolePB::from(user.role)),
+          avatar_url: if user.avatar_url.is_empty() {
+            None
+          } else {
+            Some(user.avatar_url)
+          },
+        })
+        .collect();
+
+      local_shared_details = Some(SharedViewDetails {
+        view_id: *page_id,
+        shared_with,
+      });
+    }
+
+    // 2. Fetch the data from the cloud service and persist to the local database
+    let cloud_workspace_id = workspace_id;
+    let cloud_page_id = *page_id;
+    let user = self.user.clone();
+    let cloud_service = self.cloud_service.clone();
+    tokio::spawn(async move {
+      if let Some(cloud_service) = cloud_service.upgrade() {
+        if let Ok(details) = cloud_service
+          .get_shared_page_details(&cloud_workspace_id, &cloud_page_id)
+          .await
+        {
+          if let Ok(mut conn) = user.sqlite_connection(uid) {
+            let shared_users = details
+              .shared_with
+              .iter()
+              .enumerate()
+              .map(|(order, user)| {
+                WorkspaceSharedUserTable::new(
+                  cloud_workspace_id.to_string(),
+                  cloud_page_id.to_string(),
+                  user.email.clone(),
+                  user.name.clone(),
+                  user.avatar_url.clone().unwrap_or_default(),
+                  user.role.clone() as i32,
+                  user.access_level as i32,
+                  order as i32,
+                )
+              })
+              .collect::<Vec<_>>();
+
+            let _ = replace_all_workspace_shared_users(
+              &mut conn,
+              &cloud_workspace_id.to_string(),
+              &cloud_page_id.to_string(),
+              &shared_users,
+            );
+
+            // Notify UI to refresh the shared page details
+            folder_notification_builder(
+              cloud_page_id.to_string(),
+              FolderNotification::DidUpdateSharedUsers,
+            )
+            .payload(RepeatedSharedUserPB {
+              items: details
+                .shared_with
+                .into_iter()
+                .map(|user| user.into())
+                .collect(),
+            })
+            .send();
+          }
+        }
+      }
+    });
+
+    if let Some(local_shared_details) = local_shared_details {
+      Ok(local_shared_details)
+    } else {
+      Err(FlowyError::new(
+        ErrorCode::Internal,
+        "Failed to get shared page details".to_string(),
+      ))
+    }
+  }
+
   /// Publishes a view identified by the given `view_id`.
   ///
   /// If `publish_name` is `None`, a default name will be generated using the view name and view id.
@@ -1313,7 +1622,7 @@ impl FolderManager {
           return Err(
             FlowyError::record_not_found()
               .with_context(format!("Can't find the view with ID: {}", view_id)),
-          )
+          );
         },
         Some(lock) => lock,
       };
@@ -1355,7 +1664,7 @@ impl FolderManager {
 
     let workspace_id = self.user.workspace_id()?;
     self
-      .cloud_service
+      .cloud_service()?
       .publish_view(&workspace_id, payload)
       .await?;
     Ok(())
@@ -1366,7 +1675,7 @@ impl FolderManager {
   pub async fn unpublish_views(&self, view_ids: Vec<Uuid>) -> FlowyResult<()> {
     let workspace_id = self.user.workspace_id()?;
     self
-      .cloud_service
+      .cloud_service()?
       .unpublish_views(&workspace_id, view_ids)
       .await?;
     Ok(())
@@ -1376,7 +1685,7 @@ impl FolderManager {
   /// The publish info contains the namespace and publish_name of the view.
   #[tracing::instrument(level = "debug", skip(self))]
   pub async fn get_publish_info(&self, view_id: &Uuid) -> FlowyResult<PublishInfo> {
-    let publish_info = self.cloud_service.get_publish_info(view_id).await?;
+    let publish_info = self.cloud_service()?.get_publish_info(view_id).await?;
     Ok(publish_info)
   }
 
@@ -1385,7 +1694,7 @@ impl FolderManager {
   pub async fn set_publish_name(&self, view_id: Uuid, new_name: String) -> FlowyResult<()> {
     let workspace_id = self.user.workspace_id()?;
     self
-      .cloud_service
+      .cloud_service()?
       .set_publish_name(&workspace_id, view_id, new_name)
       .await?;
     Ok(())
@@ -1397,7 +1706,7 @@ impl FolderManager {
   pub async fn set_publish_namespace(&self, new_namespace: String) -> FlowyResult<()> {
     let workspace_id = self.user.workspace_id()?;
     self
-      .cloud_service
+      .cloud_service()?
       .set_publish_namespace(&workspace_id, new_namespace)
       .await?;
     Ok(())
@@ -1408,7 +1717,7 @@ impl FolderManager {
   pub async fn get_publish_namespace(&self) -> FlowyResult<String> {
     let workspace_id = self.user.workspace_id()?;
     let namespace = self
-      .cloud_service
+      .cloud_service()?
       .get_publish_namespace(&workspace_id)
       .await?;
     Ok(namespace)
@@ -1419,7 +1728,7 @@ impl FolderManager {
   pub async fn list_published_views(&self) -> FlowyResult<Vec<PublishInfoView>> {
     let workspace_id = self.user.workspace_id()?;
     let published_views = self
-      .cloud_service
+      .cloud_service()?
       .list_published_views(&workspace_id)
       .await?;
     Ok(published_views)
@@ -1429,7 +1738,7 @@ impl FolderManager {
   pub async fn get_default_published_view_info(&self) -> FlowyResult<PublishInfo> {
     let workspace_id = self.user.workspace_id()?;
     let default_published_view_info = self
-      .cloud_service
+      .cloud_service()?
       .get_default_published_view_info(&workspace_id)
       .await?;
     Ok(default_published_view_info)
@@ -1439,7 +1748,7 @@ impl FolderManager {
   pub async fn set_default_published_view(&self, view_id: uuid::Uuid) -> FlowyResult<()> {
     let workspace_id = self.user.workspace_id()?;
     self
-      .cloud_service
+      .cloud_service()?
       .set_default_published_view(&workspace_id, view_id)
       .await?;
     Ok(())
@@ -1449,7 +1758,7 @@ impl FolderManager {
   pub async fn remove_default_published_view(&self) -> FlowyResult<()> {
     let workspace_id = self.user.workspace_id()?;
     self
-      .cloud_service
+      .cloud_service()?
       .remove_default_published_view(&workspace_id)
       .await?;
     Ok(())
@@ -1646,6 +1955,20 @@ impl FolderManager {
     self.get_sections(Section::Favorite).await
   }
 
+  pub async fn get_all_views(&self) -> FlowyResult<Vec<Arc<View>>> {
+    let lock = self
+      .mutex_folder
+      .load_full()
+      .ok_or_else(folder_not_init_error)?;
+    let views = lock
+      .read()
+      .await
+      .get_all_views()
+      .into_iter()
+      .collect::<Vec<_>>();
+    Ok(views)
+  }
+
   #[tracing::instrument(level = "debug", skip(self))]
   pub(crate) async fn get_my_recent_sections(&self) -> Vec<SectionItem> {
     self.get_sections(Section::Recent).await
@@ -1779,7 +2102,7 @@ impl FolderManager {
   }
 
   pub(crate) async fn import_zip_file(&self, zip_file_path: &str) -> FlowyResult<()> {
-    self.cloud_service.import_zip(zip_file_path).await?;
+    self.cloud_service()?.import_zip(zip_file_path).await?;
     Ok(())
   }
 
@@ -1809,7 +2132,7 @@ impl FolderManager {
 
     info!("Syncing the imported {} collab to the cloud", objects.len());
     self
-      .cloud_service
+      .cloud_service()?
       .batch_create_folder_collab_objects(&workspace_id, objects)
       .await?;
 
@@ -1939,7 +2262,7 @@ impl FolderManager {
     limit: usize,
   ) -> FlowyResult<Vec<FolderSnapshotPB>> {
     let snapshots = self
-      .cloud_service
+      .cloud_service()?
       .get_folder_snapshots(workspace_id, limit)
       .await?
       .into_iter()
@@ -2027,13 +2350,198 @@ impl FolderManager {
       .collect()
   }
 
-  pub async fn remove_indices_for_workspace(&self, workspace_id: &Uuid) -> FlowyResult<()> {
-    self
-      .folder_indexer
-      .remove_indices_for_workspace(*workspace_id)
-      .await?;
+  /// Get the shared views of the workspace.
+  ///
+  /// This function will return the first level of the shared views. If the shared view has child
+  /// views, this function will not return the child views.
+  pub async fn get_shared_pages(&self) -> FlowyResult<RepeatedSharedViewResponsePB> {
+    let uid = self.user.user_id()?;
+    let conn = self.user.sqlite_connection(uid)?;
+    let workspace_id = self.user.workspace_id()?;
+    let mut local_shared_views = vec![];
 
-    Ok(())
+    let all_views: Vec<Arc<View>> = self.get_all_views().await?;
+    let lock = self
+      .mutex_folder
+      .load_full()
+      .ok_or_else(folder_not_init_error)?;
+    let folder = lock.read().await;
+    // filter the views that are in the trash
+    let trash_ids = Self::get_all_trash_ids(&folder);
+    let all_views = all_views
+      .into_iter()
+      .filter(|view| !trash_ids.contains(&view.id))
+      .collect::<Vec<Arc<View>>>();
+
+    // 1. Get the data from the local database first
+    if let Ok(shared_views) =
+      select_all_workspace_shared_views(conn, &workspace_id.to_string(), uid)
+    {
+      local_shared_views = shared_views
+        .into_iter()
+        .filter_map(|shared_view| {
+          let view = all_views
+            .iter()
+            .find(|view| view.id == shared_view.view_id)?;
+          Some(SharedViewPB {
+            view: view_pb_with_all_child_views(view.clone(), &|parent_id| {
+              all_views
+                .iter()
+                .filter(|v| v.parent_view_id == *parent_id)
+                .cloned()
+                .collect()
+            }),
+            access_level: AFAccessLevelPB::from(shared_view.permission_id),
+          })
+        })
+        .collect();
+    }
+
+    // 2. Fetch the data from the cloud service and persist to the local database
+    let cloud_workspace_id = workspace_id;
+    let user = self.user.clone();
+    let cloud_service = self.cloud_service.clone();
+    tokio::spawn(async move {
+      if let Some(cloud_service) = cloud_service.upgrade() {
+        if let Ok(resp) = cloud_service.get_shared_views(&cloud_workspace_id).await {
+          if let Ok(mut conn) = user.sqlite_connection(uid) {
+            let shared_views: Vec<WorkspaceSharedViewTable> = resp
+              .shared_views
+              .iter()
+              .map(|shared_view| WorkspaceSharedViewTable {
+                uid,
+                workspace_id: workspace_id.to_string(),
+                view_id: shared_view.view_id.to_string(),
+                permission_id: shared_view.access_level as i32,
+                created_at: None,
+              })
+              .collect();
+            let _ = replace_all_workspace_shared_views(
+              &mut conn,
+              &cloud_workspace_id.to_string(),
+              uid,
+              &shared_views,
+            );
+
+            let repeated_shared_view_response = RepeatedSharedViewResponsePB {
+              shared_views: resp
+                .shared_views
+                .into_iter()
+                .filter_map(|shared_view| {
+                  let view = all_views
+                    .iter()
+                    .find(|view| view.id == shared_view.view_id.to_string())?;
+                  Some(SharedViewPB {
+                    view: view_pb_with_all_child_views(view.clone(), &|parent_id| {
+                      all_views
+                        .iter()
+                        .filter(|v| v.parent_view_id == *parent_id)
+                        .cloned()
+                        .collect()
+                    }),
+                    access_level: AFAccessLevelPB::from(shared_view.access_level),
+                  })
+                })
+                .collect(),
+            };
+
+            // Notify UI to refresh the shared views
+            folder_notification_builder(workspace_id, FolderNotification::DidUpdateSharedViews)
+              .payload(repeated_shared_view_response)
+              .send();
+          }
+        }
+      }
+    });
+
+    let local_result = RepeatedSharedViewResponsePB {
+      shared_views: local_shared_views.clone(),
+    };
+
+    Ok(local_result)
+  }
+
+  /// Get all the shared views of the workspace.
+  ///
+  /// This function will return all the shared views of the workspace, including the child views of the shared views.
+  pub async fn get_flatten_shared_pages(&self) -> FlowyResult<Vec<ViewPB>> {
+    let shared_pages = self.get_shared_pages().await?;
+    let mut flattened_views = Vec::new();
+
+    for shared_view in shared_pages.shared_views {
+      // Add the parent view
+      let parent_view = shared_view.view;
+      let child_views = parent_view.child_views.clone();
+      flattened_views.push(ViewPB {
+        child_views: vec![], // Remove child views to flatten the structure
+        ..parent_view
+      });
+
+      // Recursively add all child views
+      Self::flatten_child_views(&child_views, &mut flattened_views);
+    }
+
+    Ok(flattened_views)
+  }
+
+  pub async fn get_shared_view_section(&self, view_id: &str) -> FlowyResult<SharedViewSectionPB> {
+    const MAX_LOOP_COUNT: usize = 20;
+    let mut loop_count = 0;
+    let mut current_view_id = view_id.to_string();
+
+    let lock = self
+      .mutex_folder
+      .load_full()
+      .ok_or_else(folder_not_init_error)?;
+    let folder = lock.read().await;
+
+    let flattened_shared_views = self.get_flatten_shared_pages().await?;
+
+    // if the view is in the flattened_shared_views, return the section
+    if flattened_shared_views.iter().any(|view| view.id == view_id) {
+      return Ok(SharedViewSectionPB::SharedSection);
+    }
+
+    loop {
+      if loop_count >= MAX_LOOP_COUNT {
+        return Ok(SharedViewSectionPB::PublicSection);
+      }
+      loop_count += 1;
+
+      let view = folder
+        .get_view(&current_view_id)
+        .ok_or_else(|| FlowyError::record_not_found().with_context("View not found"))?;
+
+      if let Some(space_info) = view.space_info() {
+        return match space_info.space_permission {
+          SpacePermission::PublicToAll => Ok(SharedViewSectionPB::PublicSection),
+          _ => Ok(SharedViewSectionPB::PrivateSection),
+        };
+      }
+
+      let parent_view_id = view.parent_view_id.clone();
+
+      // If parent_view_id is the same as current view id, return public to avoid infinite loop
+      if parent_view_id == current_view_id {
+        return Ok(SharedViewSectionPB::PublicSection);
+      }
+
+      current_view_id = parent_view_id;
+    }
+  }
+
+  fn flatten_child_views(views: &[ViewPB], flattened_views: &mut Vec<ViewPB>) {
+    for view in views {
+      let child_views = view.child_views.clone();
+      flattened_views.push(ViewPB {
+        child_views: vec![],
+        ..view.clone()
+      });
+
+      if !child_views.is_empty() {
+        Self::flatten_child_views(&child_views, flattened_views);
+      }
+    }
   }
 }
 

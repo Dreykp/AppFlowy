@@ -121,13 +121,28 @@ class UserBackendService implements IUserBackendService {
     });
   }
 
+  static Future<FlowyResult<UserWorkspacePB, FlowyError>> getWorkspaceById(
+    String workspaceId,
+  ) async {
+    final result = await UserEventGetAllWorkspace().send();
+    return result.fold(
+      (workspaces) {
+        final workspace = workspaces.items.firstWhere(
+          (workspace) => workspace.workspaceId == workspaceId,
+        );
+        return FlowyResult.success(workspace);
+      },
+      (error) => FlowyResult.failure(error),
+    );
+  }
+
   Future<FlowyResult<void, FlowyError>> openWorkspace(
     String workspaceId,
-    AuthTypePB authType,
+    WorkspaceTypePB workspaceType,
   ) {
     final payload = OpenUserWorkspacePB()
       ..workspaceId = workspaceId
-      ..authType = authType;
+      ..workspaceType = workspaceType;
     return UserEventOpenWorkspace(payload).send();
   }
 
@@ -142,11 +157,11 @@ class UserBackendService implements IUserBackendService {
 
   Future<FlowyResult<UserWorkspacePB, FlowyError>> createUserWorkspace(
     String name,
-    AuthTypePB authType,
+    WorkspaceTypePB workspaceType,
   ) {
     final request = CreateWorkspacePB.create()
       ..name = name
-      ..authType = authType;
+      ..workspaceType = workspaceType;
     return UserEventCreateWorkspace(request).send();
   }
 
@@ -242,13 +257,6 @@ class UserBackendService implements IUserBackendService {
       getWorkspaceSubscriptionInfo(String workspaceId) {
     final params = UserWorkspaceIdPB.create()..workspaceId = workspaceId;
     return UserEventGetWorkspaceSubscriptionInfo(params).send();
-  }
-
-  Future<FlowyResult<WorkspaceMemberPB, FlowyError>>
-      getWorkspaceMember() async {
-    final data = WorkspaceMemberIdPB.create()..uid = userId;
-
-    return UserEventGetMemberInfo(data).send();
   }
 
   @override

@@ -13,10 +13,11 @@ use flowy_error::{internal_error, FlowyError, FlowyResult};
 use flowy_folder::entities::UpdateViewParams;
 use flowy_folder::manager::{FolderManager, FolderUser};
 use flowy_folder::ViewLayout;
-use flowy_search::folder::indexer::FolderIndexManagerImpl;
 use flowy_sqlite::kv::KVStorePreferences;
+use flowy_sqlite::DBConnection;
 use flowy_user::services::authenticate_user::AuthenticateUser;
 use flowy_user::services::data_import::load_collab_by_object_id;
+use flowy_user_pub::entities::UserWorkspace;
 use std::str::FromStr;
 use std::sync::{Arc, Weak};
 
@@ -26,6 +27,7 @@ use crate::deps_resolve::folder_deps::folder_deps_doc_impl::DocumentFolderOperat
 use collab_plugins::local_storage::kv::KVTransactionDB;
 use flowy_folder_pub::query::{FolderQueryService, FolderService, FolderViewEdit, QueryCollab};
 use lib_infra::async_trait::async_trait;
+use tracing::trace;
 use uuid::Uuid;
 
 pub struct FolderDepsResolver();
@@ -34,8 +36,7 @@ impl FolderDepsResolver {
   pub async fn resolve(
     authenticate_user: Weak<AuthenticateUser>,
     collab_builder: Arc<AppFlowyCollabBuilder>,
-    server_provider: Arc<ServerProvider>,
-    folder_indexer: Arc<FolderIndexManagerImpl>,
+    server_provider: Weak<ServerProvider>,
     store_preferences: Arc<KVStorePreferences>,
   ) -> Arc<FolderManager> {
     let user: Arc<dyn FolderUser> = Arc::new(FolderUserImpl {
@@ -47,7 +48,6 @@ impl FolderDepsResolver {
         user.clone(),
         collab_builder,
         server_provider.clone(),
-        folder_indexer,
         store_preferences,
       )
       .unwrap(),
@@ -57,9 +57,9 @@ impl FolderDepsResolver {
 
 pub fn register_handlers(
   folder_manager: &Arc<FolderManager>,
-  document_manager: Arc<DocumentManager>,
-  database_manager: Arc<DatabaseManager>,
-  chat_manager: Arc<AIManager>,
+  document_manager: Weak<DocumentManager>,
+  database_manager: Weak<DatabaseManager>,
+  chat_manager: Weak<AIManager>,
 ) {
   let document_folder_operation = Arc::new(DocumentFolderOperation(document_manager));
   folder_manager.register_operation_handler(ViewLayout::Document, document_folder_operation);
@@ -104,6 +104,14 @@ impl FolderUser for FolderUserImpl {
       .upgrade_user()?
       .is_collab_on_disk(uid, workspace_id.to_string().as_str())
   }
+
+  fn sqlite_connection(&self, uid: i64) -> Result<DBConnection, FlowyError> {
+    self.upgrade_user()?.get_sqlite_connection(uid)
+  }
+
+  fn get_active_user_workspace(&self) -> FlowyResult<UserWorkspace> {
+    self.upgrade_user()?.get_active_user_workspace()
+  }
 }
 
 #[derive(Clone)]
@@ -129,10 +137,10 @@ impl FolderServiceImpl {
 #[async_trait]
 impl FolderViewEdit for FolderServiceImpl {
   async fn set_view_title_if_empty(&self, view_id: &Uuid, title: &str) -> FlowyResult<()> {
+    trace!("Set view title: view_id: {}, title: {}", view_id, title);
     if title.is_empty() {
       return Ok(());
     }
-
     if let Some(folder_manager) = self.folder_manager.upgrade() {
       if let Ok(view) = folder_manager.get_view(view_id.to_string().as_str()).await {
         if view.name.is_empty() {

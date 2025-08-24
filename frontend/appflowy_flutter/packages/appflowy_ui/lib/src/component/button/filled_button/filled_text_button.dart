@@ -39,11 +39,15 @@ class AFFilledTextButton extends AFBaseTextButton {
       disabled: disabled,
       alignment: alignment,
       textStyle: textStyle,
-      textColor: (context, isHovering, disabled) =>
-          AppFlowyTheme.of(context).textColorScheme.onFill,
+      textColor: (context, isHovering, disabled) {
+        if (disabled) {
+          return AppFlowyTheme.of(context).textColorScheme.tertiary;
+        }
+        return AppFlowyTheme.of(context).textColorScheme.onFill;
+      },
       backgroundColor: (context, isHovering, disabled) {
         if (disabled) {
-          return AppFlowyTheme.of(context).fillColorScheme.primaryAlpha5;
+          return AppFlowyTheme.of(context).fillColorScheme.contentHover;
         }
         if (isHovering) {
           return AppFlowyTheme.of(context).fillColorScheme.themeThickHover;
@@ -75,11 +79,15 @@ class AFFilledTextButton extends AFBaseTextButton {
       disabled: disabled,
       alignment: alignment,
       textStyle: textStyle,
-      textColor: (context, isHovering, disabled) =>
-          AppFlowyTheme.of(context).textColorScheme.onFill,
+      textColor: (context, isHovering, disabled) {
+        if (disabled) {
+          return AppFlowyTheme.of(context).textColorScheme.tertiary;
+        }
+        return AppFlowyTheme.of(context).textColorScheme.onFill;
+      },
       backgroundColor: (context, isHovering, disabled) {
         if (disabled) {
-          return AppFlowyTheme.of(context).fillColorScheme.primaryAlpha5;
+          return AppFlowyTheme.of(context).fillColorScheme.contentHover;
         }
         if (isHovering) {
           return AppFlowyTheme.of(context).fillColorScheme.errorThickHover;
@@ -112,38 +120,45 @@ class AFFilledTextButton extends AFBaseTextButton {
       textColor: (context, isHovering, disabled) =>
           AppFlowyTheme.of(context).textColorScheme.tertiary,
       backgroundColor: (context, isHovering, disabled) =>
-          AppFlowyTheme.of(context).fillColorScheme.primaryAlpha5,
+          AppFlowyTheme.of(context).fillColorScheme.contentHover,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AFBaseButton(
-      disabled: disabled,
-      backgroundColor: backgroundColor,
-      borderColor: (_, __, ___, ____) => Colors.transparent,
-      padding: padding ?? size.buildPadding(context),
-      borderRadius: borderRadius ?? size.buildBorderRadius(context),
-      onTap: onTap,
-      builder: (context, isHovering, disabled) {
-        final textColor = this.textColor?.call(context, isHovering, disabled) ??
-            AppFlowyTheme.of(context).textColorScheme.onFill;
-        Widget child = Text(
-          text,
-          style: textStyle ??
-              size.buildTextStyle(context).copyWith(color: textColor),
-        );
-
-        final alignment = this.alignment;
-        if (alignment != null) {
-          child = Align(
-            alignment: alignment,
-            child: child,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: 76,
+      ),
+      child: AFBaseButton(
+        disabled: disabled,
+        backgroundColor: backgroundColor,
+        borderColor: (_, __, ___, ____) => Colors.transparent,
+        padding: padding ?? size.buildPadding(context),
+        borderRadius: borderRadius ?? size.buildBorderRadius(context),
+        onTap: onTap,
+        builder: (context, isHovering, disabled) {
+          final textColor =
+              this.textColor?.call(context, isHovering, disabled) ??
+                  AppFlowyTheme.of(context).textColorScheme.onFill;
+          Widget child = Text(
+            text,
+            style: textStyle ??
+                size.buildTextStyle(context).copyWith(color: textColor),
+            textAlign: TextAlign.center,
           );
-        }
 
-        return child;
-      },
+          final alignment = this.alignment;
+          if (alignment != null) {
+            child = Align(
+              alignment: alignment,
+              child: child,
+            );
+          }
+
+          return child;
+        },
+      ),
     );
   }
 }

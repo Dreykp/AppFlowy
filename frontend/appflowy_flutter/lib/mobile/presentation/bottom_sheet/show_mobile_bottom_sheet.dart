@@ -1,5 +1,6 @@
 import 'package:appflowy/mobile/presentation/bottom_sheet/bottom_sheet_buttons.dart';
 import 'package:appflowy/plugins/base/drag_handler.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -58,6 +59,7 @@ Future<T?> showMobileBottomSheet<T>(
   double initialChildSize = 0.51,
   double bottomSheetPadding = 0,
   bool enablePadding = true,
+  WidgetBuilder? dragHandleBuilder,
 }) async {
   assert(
     showHeader ||
@@ -101,7 +103,7 @@ Future<T?> showMobileBottomSheet<T>(
       // ----- header area -----
       if (showDragHandle) {
         children.add(
-          const DragHandle(),
+          dragHandleBuilder?.call(context) ?? const DragHandle(),
         );
       }
 
@@ -235,6 +237,7 @@ class BottomSheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 4.0),
       child: SizedBox(
@@ -265,11 +268,11 @@ class BottomSheetHeader extends StatelessWidget {
             Align(
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 250),
-                child: FlowyText(
+                child: Text(
                   title,
-                  fontSize: 17.0,
-                  fontWeight: FontWeight.w500,
-                  overflow: TextOverflow.ellipsis,
+                  style: theme.textStyle.heading4.prominent(
+                    color: theme.textColorScheme.primary,
+                  ),
                 ),
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:appflowy_ui/src/theme/theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 typedef AFTextFieldValidator = (bool result, String errorText) Function(
   TextEditingController controller,
@@ -20,7 +21,6 @@ class AFTextField extends StatefulWidget {
     this.hintText,
     this.initialText,
     this.keyboardType,
-    this.size = AFTextFieldSize.l,
     this.validator,
     this.controller,
     this.onChanged,
@@ -29,6 +29,11 @@ class AFTextField extends StatefulWidget {
     this.obscureText = false,
     this.suffixIconBuilder,
     this.suffixIconConstraints,
+    this.size = AFTextFieldSize.l,
+    this.groupId = EditableText,
+    this.focusNode,
+    this.readOnly = false,
+    this.maxLength,
   });
 
   /// The hint text to display when the text field is empty.
@@ -64,11 +69,23 @@ class AFTextField extends StatefulWidget {
   final bool obscureText;
 
   /// The trailing widget to display.
-  final Widget Function(BuildContext context, bool isObscured)?
+  final Widget? Function(BuildContext context, bool isObscured)?
       suffixIconBuilder;
 
   /// The size of the suffix icon.
   final BoxConstraints? suffixIconConstraints;
+
+  /// The group ID for the text field.
+  final Object groupId;
+
+  /// The focus node for the text field.
+  final FocusNode? focusNode;
+
+  /// Readonly.
+  final bool readOnly;
+
+  /// The maximum length of the text field.
+  final int? maxLength;
 
   @override
   State<AFTextField> createState() => _AFTextFieldState();
@@ -115,11 +132,53 @@ class _AFTextFieldState extends AFTextFieldState {
     final contentPadding = widget.size.contentPadding(theme);
 
     final errorBorderColor = theme.borderColorScheme.errorThick;
-    final defaultBorderColor = theme.borderColorScheme.greyTertiary;
+    final defaultBorderColor = theme.borderColorScheme.primary;
+
+    final border = OutlineInputBorder(
+      borderSide: BorderSide(
+        color: hasError ? errorBorderColor : defaultBorderColor,
+      ),
+      borderRadius: borderRadius,
+    );
+
+    final enabledBorder = OutlineInputBorder(
+      borderSide: BorderSide(
+        color: hasError ? errorBorderColor : defaultBorderColor,
+      ),
+      borderRadius: borderRadius,
+    );
+
+    final focusedBorder = OutlineInputBorder(
+      borderSide: BorderSide(
+        color: widget.readOnly
+            ? defaultBorderColor
+            : hasError
+                ? errorBorderColor
+                : theme.borderColorScheme.themeThick,
+      ),
+      borderRadius: borderRadius,
+    );
+
+    final errorBorder = OutlineInputBorder(
+      borderSide: BorderSide(
+        color: errorBorderColor,
+      ),
+      borderRadius: borderRadius,
+    );
+
+    final focusedErrorBorder = OutlineInputBorder(
+      borderSide: BorderSide(
+        color: errorBorderColor,
+      ),
+      borderRadius: borderRadius,
+    );
 
     Widget child = TextField(
+      groupId: widget.groupId,
+      focusNode: widget.focusNode,
       controller: effectiveController,
       keyboardType: widget.keyboardType,
+      readOnly: widget.readOnly,
       style: theme.textStyle.body.standard(
         color: theme.textColorScheme.primary,
       ),
@@ -127,6 +186,8 @@ class _AFTextFieldState extends AFTextFieldState {
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       autofocus: widget.autoFocus ?? false,
+      maxLength: widget.maxLength,
+      maxLengthEnforcement: MaxLengthEnforcement.truncateAfterCompositionEnds,
       decoration: InputDecoration(
         hintText: widget.hintText,
         hintStyle: theme.textStyle.body.standard(
@@ -135,39 +196,12 @@ class _AFTextFieldState extends AFTextFieldState {
         isDense: true,
         constraints: BoxConstraints(),
         contentPadding: contentPadding,
-        border: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: hasError ? errorBorderColor : defaultBorderColor,
-          ),
-          borderRadius: borderRadius,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: hasError ? errorBorderColor : defaultBorderColor,
-          ),
-          borderRadius: borderRadius,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: hasError
-                ? errorBorderColor
-                : theme.borderColorScheme.themeThick,
-          ),
-          borderRadius: borderRadius,
-        ),
-        errorBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: errorBorderColor,
-          ),
-          borderRadius: borderRadius,
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: errorBorderColor,
-          ),
-          borderRadius: borderRadius,
-        ),
-        hoverColor: theme.borderColorScheme.greyTertiaryHover,
+        border: border,
+        enabledBorder: enabledBorder,
+        focusedBorder: focusedBorder,
+        errorBorder: errorBorder,
+        focusedErrorBorder: focusedErrorBorder,
+        hoverColor: theme.borderColorScheme.primaryHover,
         suffixIcon: widget.suffixIconBuilder?.call(context, isObscured),
         suffixIconConstraints: widget.suffixIconConstraints,
       ),

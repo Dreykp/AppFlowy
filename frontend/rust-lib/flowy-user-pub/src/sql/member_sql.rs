@@ -1,9 +1,9 @@
 use crate::entities::{Role, WorkspaceMember};
-use diesel::{insert_into, RunQueryDsl};
+use diesel::{RunQueryDsl, insert_into};
 use flowy_error::FlowyResult;
 use flowy_sqlite::schema::workspace_members_table;
 use flowy_sqlite::schema::workspace_members_table::dsl;
-use flowy_sqlite::{prelude::*, DBConnection, ExpressionMethods};
+use flowy_sqlite::{DBConnection, ExpressionMethods, prelude::*};
 
 #[derive(Queryable, Insertable, AsChangeset, Debug, Clone)]
 #[diesel(table_name = workspace_members_table)]
@@ -16,6 +16,7 @@ pub struct WorkspaceMemberTable {
   pub uid: i64,
   pub workspace_id: String,
   pub updated_at: chrono::NaiveDateTime,
+  pub joined_at: Option<i64>,
 }
 
 impl From<WorkspaceMemberTable> for WorkspaceMember {
@@ -25,6 +26,7 @@ impl From<WorkspaceMemberTable> for WorkspaceMember {
       role: Role::from(value.role),
       name: value.name,
       avatar_url: value.avatar_url,
+      joined_at: value.joined_at,
     }
   }
 }

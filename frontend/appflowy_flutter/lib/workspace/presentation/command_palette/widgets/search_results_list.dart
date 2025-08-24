@@ -1,30 +1,30 @@
-import 'package:appflowy/startup/startup.dart';
-import 'package:appflowy/workspace/application/action_navigation/action_navigation_bloc.dart';
-import 'package:appflowy/workspace/application/action_navigation/navigation_action.dart';
+import 'package:appflowy/features/workspace/logic/workspace_bloc.dart';
+import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/workspace/application/command_palette/command_palette_bloc.dart';
 import 'package:appflowy/workspace/application/command_palette/search_result_list_bloc.dart';
-import 'package:flutter/material.dart';
-
-import 'package:appflowy/generated/locale_keys.g.dart';
-import 'package:appflowy_backend/protobuf/flowy-folder/trash.pb.dart';
+import 'package:appflowy/workspace/presentation/command_palette/navigation_bloc_extension.dart';
+import 'package:appflowy/workspace/presentation/command_palette/widgets/search_ask_ai_entrance.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-search/result.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-user/workspace.pbenum.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
+import 'page_preview.dart';
 import 'search_result_cell.dart';
-import 'search_summary_cell.dart';
 
 class SearchResultList extends StatefulWidget {
   const SearchResultList({
-    required this.trash,
+    required this.cachedViews,
     required this.resultItems,
     required this.resultSummaries,
     super.key,
   });
 
-  final List<TrashPB> trash;
+  final Map<String, ViewPB> cachedViews;
   final List<SearchResultItem> resultItems;
   final List<SearchSummaryPB> resultSummaries;
 
@@ -47,148 +47,125 @@ class _SearchResultListState extends State<SearchResultList> {
     super.dispose();
   }
 
-  Widget _buildSectionHeader(String title) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8) +
-            const EdgeInsets.only(left: 8),
-        child: Opacity(
-          opacity: 0.6,
-          child: FlowyText(title, fontSize: 12),
-        ),
-      );
-
-  Widget _buildAIOverviewSection(BuildContext context) {
-    final state = context.read<CommandPaletteBloc>().state;
-
-    if (state.generatingAIOverview) {
-      return Row(
-        children: [
-          _buildSectionHeader(LocaleKeys.commandPalette_aiOverview.tr()),
-          const HSpace(10),
-          const AIOverviewIndicator(),
-        ],
-      );
-    }
-
-    if (widget.resultSummaries.isNotEmpty) {
-      if (!bloc.state.userHovered) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) {
-            bloc.add(
-              SearchResultListEvent.onHoverSummary(
-                summary: widget.resultSummaries[0],
-                userHovered: false,
-              ),
-            );
-          },
-        );
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(LocaleKeys.commandPalette_aiOverview.tr()),
-          ListView.separated(
-            physics: const NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
-            itemCount: widget.resultSummaries.length,
-            separatorBuilder: (_, __) => const Divider(height: 0),
-            itemBuilder: (_, index) => SearchSummaryCell(
-              summary: widget.resultSummaries[index],
-              isHovered: bloc.state.hoveredSummary != null,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return const SizedBox.shrink();
-  }
-
-  Widget _buildResultsSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 8),
-        _buildSectionHeader(LocaleKeys.commandPalette_bestMatches.tr()),
-        ListView.separated(
-          physics: const NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          itemCount: widget.resultItems.length,
-          separatorBuilder: (_, __) => const Divider(height: 0),
-          itemBuilder: (_, index) {
-            final item = widget.resultItems[index];
-            return SearchResultCell(
-              item: item,
-              isTrashed: widget.trash.any((t) => t.id == item.id),
-              isHovered: bloc.state.hoveredResult?.id == item.id,
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider.value(
+      value: bloc,
+      child: BlocListener<SearchResultListBloc, SearchResultListState>(
+        listener: (context, state) {
+          final pageId = state.openPageId;
+          if (pageId != null && pageId.isNotEmpty) {
+            FlowyOverlay.pop(context);
+            pageId.navigateTo();
+          }
+        },
+        child: BlocBuilder<SearchResultListBloc, SearchResultListState>(
+          builder: (context, state) {
+            final hasHoverResult = state.hoveredResult != null;
+            return LayoutBuilder(
+              builder: (context, constrains) {
+                final maxWidth = constrains.maxWidth;
+                final hidePreview = maxWidth < 884;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildResultsSection(context, hidePreview)),
+                    if (!hidePreview && hasHoverResult)
+                      const SearchCellPreview(),
+                  ],
+                );
+              },
             );
           },
         ),
-      ],
+      ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSectionHeader(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: BlocProvider.value(
-        value: bloc,
-        child: BlocListener<SearchResultListBloc, SearchResultListState>(
-          listener: (context, state) {
-            if (state.openPageId != null) {
-              FlowyOverlay.pop(context);
-              getIt<ActionNavigationBloc>().add(
-                ActionNavigationEvent.performAction(
-                  action: NavigationAction(objectId: state.openPageId!),
+      padding: EdgeInsets.symmetric(
+        vertical: theme.spacing.s,
+        horizontal: theme.spacing.m,
+      ),
+      child: Text(
+        LocaleKeys.commandPalette_bestMatches.tr(),
+        style: theme.textStyle.body
+            .enhanced(color: theme.textColorScheme.secondary)
+            .copyWith(
+              letterSpacing: 0.2,
+              height: 22 / 16,
+            ),
+      ),
+    );
+  }
+
+  Widget _buildResultsSection(BuildContext context, bool hidePreview) {
+    final workspaceState = context.read<UserWorkspaceBloc?>()?.state;
+    final showAskingAI =
+        workspaceState?.userProfile.workspaceType == WorkspaceTypePB.ServerW;
+    if (widget.resultItems.isEmpty) return const SizedBox.shrink();
+    List<SearchResultItem> resultItems = widget.resultItems;
+    final hasCachedViews = widget.cachedViews.isNotEmpty;
+    if (hasCachedViews) {
+      resultItems = widget.resultItems
+          .where((item) => widget.cachedViews[item.id] != null)
+          .toList();
+    }
+    return ScrollControllerBuilder(
+      builder: (context, controller) {
+        final hoveredId = bloc.state.hoveredResult?.id;
+        return Padding(
+          padding: EdgeInsets.only(right: hidePreview ? 0 : 6),
+          child: FlowyScrollbar(
+            controller: controller,
+            thumbVisibility: false,
+            child: SingleChildScrollView(
+              controller: controller,
+              physics: ClampingScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: hidePreview ? 0 : 6,
                 ),
-              );
-            }
-          },
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Flexible(
-                flex: 7,
-                child: BlocBuilder<SearchResultListBloc, SearchResultListState>(
-                  buildWhen: (previous, current) =>
-                      previous.hoveredResult != current.hoveredResult ||
-                      previous.hoveredSummary != current.hoveredSummary,
-                  builder: (context, state) {
-                    return ListView(
-                      shrinkWrap: true,
-                      physics: const ClampingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showAskingAI) SearchAskAiEntrance(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildAIOverviewSection(context),
-                        const VSpace(10),
-                        if (widget.resultItems.isNotEmpty)
-                          _buildResultsSection(context),
+                        _buildSectionHeader(context),
+                        ListView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemCount: resultItems.length,
+                          itemBuilder: (_, index) {
+                            final item = resultItems[index];
+                            return SearchResultCell(
+                              key: ValueKey(item.id),
+                              item: item,
+                              isNarrowWindow: hidePreview,
+                              view: widget.cachedViews[item.id],
+                              isHovered: hoveredId == item.id,
+                              query: context
+                                  .read<CommandPaletteBloc?>()
+                                  ?.state
+                                  .query,
+                            );
+                          },
+                        ),
+                        VSpace(16),
                       ],
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
-              const HSpace(10),
-              if (widget.resultItems
-                  .any((item) => item.content.isNotEmpty)) ...[
-                const VerticalDivider(
-                  thickness: 1.0,
-                ),
-                Flexible(
-                  flex: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 16,
-                    ),
-                    child: const SearchCellPreview(),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -200,79 +177,14 @@ class SearchCellPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<SearchResultListBloc, SearchResultListState>(
       builder: (context, state) {
-        if (state.hoveredSummary != null) {
-          return SearchSummaryPreview(summary: state.hoveredSummary!);
-        } else if (state.hoveredResult != null) {
-          return SearchResultPreview(data: state.hoveredResult!);
+        final hoverdId = state.hoveredResult?.id ?? '';
+        final commandPaletteState = context.read<CommandPaletteBloc>().state;
+        final view = commandPaletteState.cachedViews[hoverdId];
+        if (view != null) {
+          return SearchResultPreview(view: view);
         }
-        return const SizedBox.shrink();
+        return SomethingWentWrong();
       },
-    );
-  }
-}
-
-class AIOverviewIndicator extends StatelessWidget {
-  const AIOverviewIndicator({
-    super.key,
-    this.duration = const Duration(seconds: 1),
-  });
-
-  final Duration duration;
-
-  @override
-  Widget build(BuildContext context) {
-    final slice = Duration(milliseconds: duration.inMilliseconds ~/ 5);
-    return SelectionContainer.disabled(
-      child: SizedBox(
-        height: 20,
-        width: 100,
-        child: SeparatedRow(
-          separatorBuilder: () => const HSpace(4),
-          children: [
-            buildDot(const Color(0xFF9327FF))
-                .animate(onPlay: (controller) => controller.repeat())
-                .slideY(duration: slice, begin: 0, end: -1)
-                .then()
-                .slideY(begin: -1, end: 1)
-                .then()
-                .slideY(begin: 1, end: 0)
-                .then()
-                .slideY(duration: slice * 2, begin: 0, end: 0),
-            buildDot(const Color(0xFFFB006D))
-                .animate(onPlay: (controller) => controller.repeat())
-                .slideY(duration: slice, begin: 0, end: 0)
-                .then()
-                .slideY(begin: 0, end: -1)
-                .then()
-                .slideY(begin: -1, end: 1)
-                .then()
-                .slideY(begin: 1, end: 0)
-                .then()
-                .slideY(begin: 0, end: 0),
-            buildDot(const Color(0xFFFFCE00))
-                .animate(onPlay: (controller) => controller.repeat())
-                .slideY(duration: slice * 2, begin: 0, end: 0)
-                .then()
-                .slideY(duration: slice, begin: 0, end: -1)
-                .then()
-                .slideY(begin: -1, end: 1)
-                .then()
-                .slideY(begin: 1, end: 0),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildDot(Color color) {
-    return SizedBox.square(
-      dimension: 4,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
     );
   }
 }

@@ -15,7 +15,8 @@ import 'package:appflowy/workspace/application/workspace/workspace_sections_list
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/space/space_icon_popup.dart';
 import 'package:appflowy_backend/log.dart';
 import 'package:appflowy_backend/protobuf/flowy-error/errors.pb.dart';
-import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart'
+    hide AFRolePB;
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_result/appflowy_result.dart';
 import 'package:collection/collection.dart';
@@ -76,12 +77,6 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
 
             final (spaces, publicViews, privateViews) = await _getSpaces();
 
-            final shouldShowUpgradeDialog = await this.shouldShowUpgradeDialog(
-              spaces: spaces,
-              publicViews: publicViews,
-              privateViews: privateViews,
-            );
-
             final currentSpace = await _getLastOpenedSpace(spaces);
             final isExpanded = await _getSpaceExpandStatus(currentSpace);
             emit(
@@ -89,21 +84,15 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
                 spaces: spaces,
                 currentSpace: currentSpace,
                 isExpanded: isExpanded,
-                shouldShowUpgradeDialog: shouldShowUpgradeDialog,
+                shouldShowUpgradeDialog: false,
                 isInitialized: true,
               ),
             );
 
-            if (shouldShowUpgradeDialog && !integrationMode().isTest) {
-              if (!isClosed) {
-                add(const SpaceEvent.migrate());
-              }
-            }
-
             if (openFirstPage) {
               if (currentSpace != null) {
                 if (!isClosed) {
-                  add(SpaceEvent.open(currentSpace));
+                  add(SpaceEvent.open(space: currentSpace));
                 }
               }
             }
@@ -132,7 +121,7 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
                   currentSpace: space,
                 ),
               );
-              add(SpaceEvent.open(space));
+              add(SpaceEvent.open(space: space));
               Log.info('open space: ${space.name}(${space.id})');
 
               if (createNewPageByDefault) {
@@ -249,7 +238,7 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
               );
             }
           },
-          open: (space) async {
+          open: (space, afterOpen) async {
             await _openSpace(space);
             final isExpanded = await _getSpaceExpandStatus(space);
             final views = await ViewBackendService.getChildViews(
@@ -290,6 +279,7 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
                 );
               }
             }
+             afterOpen?.call();
           },
           expand: (space, isExpanded) async {
             await _setSpaceExpandStatus(space, isExpanded);
@@ -368,7 +358,7 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
             final currentIndex = spaces.indexOf(currentSpace);
             final nextIndex = (currentIndex + 1) % spaces.length;
             final nextSpace = spaces[nextIndex];
-            add(SpaceEvent.open(nextSpace));
+            add(SpaceEvent.open(space: nextSpace));
           },
           duplicate: (space) async {
             space ??= state.currentSpace;
@@ -385,7 +375,7 @@ class SpaceBloc extends Bloc<SpaceEvent, SpaceState> {
             // open the duplicated space
             if (newSpace != null) {
               add(const SpaceEvent.didReceiveSpaceUpdate());
-              add(SpaceEvent.open(newSpace));
+              add(SpaceEvent.open(space: newSpace));
             }
 
             emit(state.copyWith(isDuplicatingSpace: false));
@@ -774,7 +764,10 @@ class SpaceEvent with _$SpaceEvent {
     String? iconColor,
     SpacePermission? permission,
   }) = _Update;
-  const factory SpaceEvent.open(ViewPB space) = _Open;
+  const factory SpaceEvent.open({
+    required ViewPB space,
+    VoidCallback? afterOpen,
+  }) = _Open;
   const factory SpaceEvent.expand(ViewPB space, bool isExpanded) = _Expand;
   const factory SpaceEvent.createPage({
     required String name,

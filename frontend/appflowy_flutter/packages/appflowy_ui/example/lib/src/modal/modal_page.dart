@@ -34,7 +34,7 @@ class _ModalPageState extends State<ModalPage> {
                       'S',
                       style: TextStyle(
                         color: width == AFModalDimension.S
-                            ? theme.textColorScheme.theme
+                            ? theme.textColorScheme.action
                             : theme.textColorScheme.primary,
                       ),
                     );
@@ -47,7 +47,7 @@ class _ModalPageState extends State<ModalPage> {
                       'M',
                       style: TextStyle(
                         color: width == AFModalDimension.M
-                            ? theme.textColorScheme.theme
+                            ? theme.textColorScheme.action
                             : theme.textColorScheme.primary,
                       ),
                     );
@@ -60,7 +60,7 @@ class _ModalPageState extends State<ModalPage> {
                       'L',
                       style: TextStyle(
                         color: width == AFModalDimension.L
-                            ? theme.textColorScheme.theme
+                            ? theme.textColorScheme.action
                             : theme.textColorScheme.primary,
                       ),
                     );
@@ -96,7 +96,7 @@ class _ModalPageState extends State<ModalPage> {
                               AFModalHeader(
                                 leading: Text(
                                   'Header',
-                                  style: theme.textStyle.heading4.standard(
+                                  style: theme.textStyle.heading4.prominent(
                                     color: theme.textColorScheme.primary,
                                   ),
                                 ),

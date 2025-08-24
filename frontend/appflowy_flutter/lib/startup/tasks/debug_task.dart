@@ -13,6 +13,8 @@ class DebugTask extends LaunchTask {
 
   @override
   Future<void> initialize(LaunchContext context) async {
+    await super.initialize(context);
+
     // hide the keyboard on mobile
     if (UniversalPlatform.isMobile && kDebugMode) {
       await SystemChannels.textInput.invokeMethod('TextInput.hide');
@@ -23,15 +25,13 @@ class DebugTask extends LaunchTask {
       Bloc.observer = TalkerBlocObserver(
         talker: talker,
         settings: TalkerBlocLoggerSettings(
-          // Disabled by default to prevent mixing with AppFlowy logs
-          // Enable to observe all bloc events
           enabled: false,
           printEventFullData: false,
           printStateFullData: false,
           printChanges: true,
           printClosings: true,
           printCreations: true,
-          transitionFilter: (_, transition) {
+          transitionFilter: (bloc, transition) {
             // By default, observe all transitions
             // You can add your own filter here if needed
             //  when you want to observer a specific bloc
@@ -39,9 +39,9 @@ class DebugTask extends LaunchTask {
           },
         ),
       );
+
+      // enable rust request tracing
+      // Dispatch.enableTracing = true;
     }
   }
-
-  @override
-  Future<void> dispose() async {}
 }

@@ -10,6 +10,7 @@ use strum_macros::Display;
 use uuid::Uuid;
 
 use crate::event_handler::*;
+use crate::services::entities::{UserConfig, UserPaths};
 use crate::user_manager::UserManager;
 
 #[rustfmt::skip]
@@ -276,28 +277,32 @@ pub enum UserEvent {
 }
 
 #[async_trait]
-pub trait UserStatusCallback: Send + Sync + 'static {
-  /// When the [AuthType] changed, this method will be called. Currently, the auth type
-  /// will be changed when the user sign in or sign up.
-  fn on_auth_type_changed(&self, _authenticator: AuthType) {}
+pub trait AppLifeCycle: Send + Sync + 'static {
   /// Fires on app launch, but only if the user is already signed in.
   async fn on_launch_if_authenticated(
     &self,
     _user_id: i64,
     _cloud_config: &Option<UserCloudConfig>,
-    _user_workspace: &UserWorkspace,
-    _device_id: &str,
-    _auth_type: &AuthType,
+    _workspace_id: &Uuid,
+    _user_config: &UserConfig,
+    _user_path: &UserPaths,
+    _workspace_type: &WorkspaceType,
   ) -> FlowyResult<()> {
     Ok(())
   }
+
+  async fn did_launch(&self) -> FlowyResult<()> {
+    Ok(())
+  }
+
   /// Fires right after the user successfully signs in.
   async fn on_sign_in(
     &self,
     _user_id: i64,
-    _user_workspace: &UserWorkspace,
-    _device_id: &str,
-    _auth_type: &AuthType,
+    _workspace_id: &Uuid,
+    _user_config: &UserConfig,
+    _user_path: &UserPaths,
+    _workspace_type: &WorkspaceType,
   ) -> FlowyResult<()> {
     Ok(())
   }
@@ -307,9 +312,10 @@ pub trait UserStatusCallback: Send + Sync + 'static {
     &self,
     _is_new_user: bool,
     _user_profile: &UserProfile,
-    _user_workspace: &UserWorkspace,
-    _device_id: &str,
-    _auth_type: &AuthType,
+    _workspace_id: &Uuid,
+    _user_config: &UserConfig,
+    _user_path: &UserPaths,
+    _workspace_type: &WorkspaceType,
   ) -> FlowyResult<()> {
     Ok(())
   }
@@ -319,21 +325,35 @@ pub trait UserStatusCallback: Send + Sync + 'static {
     Ok(())
   }
 
+  async fn on_workspace_closed(&self, _workspace_id: &Uuid) -> FlowyResult<()> {
+    Ok(())
+  }
+
   /// Fires when a workspace is opened by the user.
   async fn on_workspace_opened(
     &self,
     _user_id: i64,
     _workspace_id: &Uuid,
     _user_workspace: &UserWorkspace,
-    _auth_type: &AuthType,
+    _workspace_type: &WorkspaceType,
+    _user_config: &UserConfig,
+    _user_path: &UserPaths,
   ) -> FlowyResult<()> {
+    Ok(())
+  }
+
+  async fn on_workspace_deleted(&self, _user_id: i64, _workspace_id: &Uuid) -> FlowyResult<()> {
     Ok(())
   }
   fn on_network_status_changed(&self, _reachable: bool) {}
   fn on_subscription_plans_updated(&self, _plans: Vec<SubscriptionPlan>) {}
   fn on_storage_permission_updated(&self, _can_write: bool) {}
+
+  fn subscribe_full_indexed_finish(&self) -> Option<tokio::sync::watch::Receiver<bool>> {
+    None
+  }
 }
 
-/// Acts as a placeholder [UserStatusCallback] for the user session, but does not perform any function
+/// Acts as a placeholder [AppLifeCycle] for the user session, but does not perform any function
 pub(crate) struct DefaultUserStatusCallback;
-impl UserStatusCallback for DefaultUserStatusCallback {}
+impl AppLifeCycle for DefaultUserStatusCallback {}

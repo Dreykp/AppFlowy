@@ -1,12 +1,12 @@
 use crate::local_ai::controller::LocalAISetting;
 use crate::local_ai::resource::PendingResource;
-use af_plugin::core::plugin::RunningState;
 use flowy_ai_pub::cloud::{
   AIModel, ChatMessage, ChatMessageType, CompletionMessage, LLMModel, OutputContent, OutputLayout,
   RelatedQuestion, RepeatedChatMessage, RepeatedRelatedQuestion, ResponseFormat,
 };
 use flowy_derive::{ProtoBuf, ProtoBuf_Enum};
 use lib_infra::validator_fn::required_not_empty_str;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 use validator::Validate;
@@ -70,6 +70,9 @@ pub struct StreamChatPayloadPB {
 
   #[pb(index = 6, one_of)]
   pub format: Option<PredefinedFormatPB>,
+
+  #[pb(index = 7, one_of)]
+  pub prompt_id: Option<String>,
 }
 
 #[derive(Default, Debug)]
@@ -80,6 +83,7 @@ pub struct StreamMessageParams {
   pub answer_stream_port: i64,
   pub question_stream_port: i64,
   pub format: Option<PredefinedFormatPB>,
+  pub prompt_id: Option<String>,
 }
 
 #[derive(Default, ProtoBuf, Validate, Clone, Debug)]
@@ -182,7 +186,7 @@ pub struct ChatMessageListPB {
 }
 
 #[derive(Default, ProtoBuf, Clone, Debug)]
-pub struct ServerAvailableModelsPB {
+pub struct ServerModelSelectionPB {
   #[pb(index = 1)]
   pub models: Vec<AvailableModelPB>,
 }
@@ -200,7 +204,7 @@ pub struct AvailableModelPB {
 }
 
 #[derive(Default, ProtoBuf, Validate, Clone, Debug)]
-pub struct AvailableModelsQueryPB {
+pub struct ModelSourcePB {
   #[pb(index = 1)]
   #[validate(custom(function = "required_not_empty_str"))]
   pub source: String,
@@ -217,12 +221,18 @@ pub struct UpdateSelectedModelPB {
 }
 
 #[derive(Default, ProtoBuf, Clone, Debug)]
-pub struct AvailableModelsPB {
+pub struct ModelSelectionPB {
   #[pb(index = 1)]
   pub models: Vec<AIModelPB>,
 
   #[pb(index = 2)]
   pub selected_model: AIModelPB,
+}
+
+#[derive(Default, ProtoBuf, Clone, Debug)]
+pub struct RepeatedAIModelPB {
+  #[pb(index = 1)]
+  pub items: Vec<AIModelPB>,
 }
 
 #[derive(Default, ProtoBuf, Clone, Debug)]
@@ -294,6 +304,8 @@ pub struct ChatMessagePB {
 
   #[pb(index = 7, one_of)]
   pub metadata: Option<String>,
+  // #[pb(index = 8)]
+  // pub should_fetch_related_question: bool,
 }
 
 #[derive(Debug, Clone, Default, ProtoBuf)]
@@ -433,6 +445,9 @@ pub struct CompleteTextPB {
 
   #[pb(index = 8, one_of)]
   pub custom_prompt: Option<String>,
+
+  #[pb(index = 9, one_of)]
+  pub prompt_id: Option<String>,
 }
 
 #[derive(Default, ProtoBuf, Clone, Debug)]
@@ -562,19 +577,6 @@ pub enum RunningStatePB {
   Stopped = 4,
 }
 
-impl From<RunningState> for RunningStatePB {
-  fn from(value: RunningState) -> Self {
-    match value {
-      RunningState::ReadyToConnect => RunningStatePB::ReadyToRun,
-      RunningState::Connecting => RunningStatePB::Connecting,
-      RunningState::Connected { .. } => RunningStatePB::Connected,
-      RunningState::Running { .. } => RunningStatePB::Running,
-      RunningState::Stopped { .. } => RunningStatePB::Stopped,
-      RunningState::UnexpectedStop { .. } => RunningStatePB::Stopped,
-    }
-  }
-}
-
 #[derive(Default, ProtoBuf, Clone, Debug)]
 pub struct LocalAIPB {
   #[pb(index = 1)]
@@ -584,13 +586,7 @@ pub struct LocalAIPB {
   pub lack_of_resource: Option<LackOfAIResourcePB>,
 
   #[pb(index = 3)]
-  pub state: RunningStatePB,
-
-  #[pb(index = 4, one_of)]
-  pub plugin_version: Option<String>,
-
-  #[pb(index = 5)]
-  pub plugin_downloaded: bool,
+  pub is_ready: bool,
 }
 
 #[derive(Default, ProtoBuf, Validate, Clone, Debug)]
@@ -625,9 +621,6 @@ pub struct UpdateChatSettingsPB {
 
   #[pb(index = 2)]
   pub rag_ids: Vec<String>,
-
-  #[pb(index = 3)]
-  pub chat_model: String,
 }
 
 #[derive(Debug, Default, Clone, ProtoBuf)]
@@ -686,7 +679,7 @@ pub struct LocalAISettingPB {
 
   #[pb(index = 2)]
   #[validate(custom(function = "required_not_empty_str"))]
-  pub chat_model_name: String,
+  pub global_chat_model: String,
 
   #[pb(index = 3)]
   #[validate(custom(function = "required_not_empty_str"))]
@@ -697,7 +690,7 @@ impl From<LocalAISetting> for LocalAISettingPB {
   fn from(value: LocalAISetting) -> Self {
     LocalAISettingPB {
       server_url: value.ollama_server_url,
-      chat_model_name: value.chat_model_name,
+      global_chat_model: value.chat_model_name,
       embedding_model_name: value.embedding_model_name,
     }
   }
@@ -707,7 +700,7 @@ impl From<LocalAISettingPB> for LocalAISetting {
   fn from(value: LocalAISettingPB) -> Self {
     LocalAISetting {
       ollama_server_url: value.server_url,
-      chat_model_name: value.chat_model_name,
+      chat_model_name: value.global_chat_model,
       embedding_model_name: value.embedding_model_name,
     }
   }
@@ -747,4 +740,28 @@ impl From<PendingResource> for LackOfAIResourcePB {
       },
     }
   }
+}
+
+#[derive(Default, ProtoBuf, Clone, Debug)]
+pub struct CustomPromptDatabaseViewIdPB {
+  #[pb(index = 1)]
+  pub id: String,
+}
+
+#[derive(Default, ProtoBuf, Clone, Debug, Serialize, Deserialize)]
+pub struct CustomPromptDatabaseConfigurationPB {
+  #[pb(index = 1)]
+  pub view_id: String,
+
+  #[pb(index = 2)]
+  pub title_field_id: String,
+
+  #[pb(index = 3)]
+  pub content_field_id: String,
+
+  #[pb(index = 4, one_of)]
+  pub example_field_id: Option<String>,
+
+  #[pb(index = 5, one_of)]
+  pub category_field_id: Option<String>,
 }

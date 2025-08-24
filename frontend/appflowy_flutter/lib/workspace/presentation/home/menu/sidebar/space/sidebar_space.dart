@@ -1,15 +1,18 @@
+import 'package:appflowy/features/shared_section/presentation/shared_section.dart';
+import 'package:appflowy/features/workspace/logic/workspace_bloc.dart';
+import 'package:appflowy/shared/feature_flags.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/workspace/application/favorite/favorite_bloc.dart';
 import 'package:appflowy/workspace/application/sidebar/space/space_bloc.dart';
 import 'package:appflowy/workspace/application/tabs/tabs_bloc.dart';
-import 'package:appflowy/workspace/application/user/user_workspace_bloc.dart';
 import 'package:appflowy/workspace/presentation/home/hotkeys.dart';
 import 'package:appflowy/workspace/presentation/home/menu/menu_shared_state.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/favorites/favorite_folder.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/space/create_space_popup.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/space/shared_widget.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/space/sidebar_space_header.dart';
-import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart'
+    hide AFRolePB;
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
@@ -30,6 +33,17 @@ class SidebarSpace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentWorkspace =
+        context.watch<UserWorkspaceBloc>().state.currentWorkspace;
+    final currentWorkspaceId = currentWorkspace?.workspaceId ?? '';
+
+    // only show spaces if the user role is member or owner
+    final currentUserRole = currentWorkspace?.role;
+    final shouldShowSpaces = [
+      AFRolePB.Member,
+      AFRolePB.Owner,
+    ].contains(currentUserRole);
+
     return ValueListenableBuilder(
       valueListenable: getIt<MenuSharedState>().notifier,
       builder: (_, __, ___) => Provider.value(
@@ -43,14 +57,30 @@ class SidebarSpace extends StatelessWidget {
                 if (state.views.isEmpty) {
                   return const SizedBox.shrink();
                 }
-                return FavoriteFolder(
-                  views: state.views.map((e) => e.item).toList(),
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: FavoriteFolder(
+                    views: state.views.map((e) => e.item).toList(),
+                  ),
                 );
               },
             ),
-            const VSpace(16.0),
+
+            // shared
+            if (FeatureFlag.sharedSection.isOn) ...[
+              SharedSection(
+                key: ValueKey(currentWorkspaceId),
+                workspaceId: currentWorkspaceId,
+              ),
+            ],
+
             // spaces
-            const _Space(),
+            if (shouldShowSpaces) ...[
+              // spaces
+              const _Space(),
+            ],
+
             const VSpace(200),
           ],
         ),
@@ -73,7 +103,9 @@ class _SpaceState extends State<_Space> {
   @override
   void initState() {
     super.initState();
+
     switchToTheNextSpace.addListener(_switchToNextSpace);
+    switchToSpaceNotifier.addListener(_switchToSpace);
   }
 
   @override
@@ -81,6 +113,7 @@ class _SpaceState extends State<_Space> {
     switchToTheNextSpace.removeListener(_switchToNextSpace);
     isHovered.dispose();
     isExpandedNotifier.dispose();
+
     super.dispose();
   }
 
@@ -174,5 +207,18 @@ class _SpaceState extends State<_Space> {
 
   void _switchToNextSpace() {
     context.read<SpaceBloc>().add(const SpaceEvent.switchToNextSpace());
+  }
+
+  void _switchToSpace() {
+    if (!mounted || !context.mounted) {
+      return;
+    }
+
+    final space = switchToSpaceNotifier.value;
+    if (space == null) {
+      return;
+    }
+
+    context.read<SpaceBloc>().add(SpaceEvent.open(space: space));
   }
 }

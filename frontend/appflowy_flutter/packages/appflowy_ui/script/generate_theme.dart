@@ -110,15 +110,16 @@ import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../shared.dart';
-import 'primitive.dart';
 
 class AppFlowyDefaultTheme implements AppFlowyThemeBuilder {''');
 
   // 3. Process light mode semantic tokens
   buffer.writeln('''
   @override
-  AppFlowyThemeData light() {
-    final textStyle = AppFlowyBaseTextStyle();
+  AppFlowyThemeData light({
+    String? fontFamily,
+  }) {
+    final textStyle = AppFlowyBaseTextStyle.customFontFamily(fontFamily ?? '');
     final borderRadius = AppFlowySharedTokens.buildBorderRadius();
     final spacing = AppFlowySharedTokens.buildSpacing();
     final shadow = AppFlowySharedTokens.buildShadow(Brightness.light);''');
@@ -159,6 +160,8 @@ class AppFlowyDefaultTheme implements AppFlowyThemeBuilder {''');
       brandColorScheme: brandColorScheme,
       otherColorsColorScheme: otherColorsColorScheme,
       borderRadius: borderRadius,
+      surfaceContainerColorScheme: surfaceContainerColorScheme,
+      badgeColorScheme: badgeColorScheme,
       spacing: spacing,
       shadow: shadow,
     );
@@ -168,8 +171,10 @@ class AppFlowyDefaultTheme implements AppFlowyThemeBuilder {''');
 
   buffer.writeln('''
   @override
-  AppFlowyThemeData dark() {
-    final textStyle = AppFlowyBaseTextStyle();
+  AppFlowyThemeData dark({
+    String? fontFamily,
+  }) {
+    final textStyle = AppFlowyBaseTextStyle.customFontFamily(fontFamily ?? '');
     final borderRadius = AppFlowySharedTokens.buildBorderRadius();
     final spacing = AppFlowySharedTokens.buildSpacing();
     final shadow = AppFlowySharedTokens.buildShadow(Brightness.dark);''');
@@ -213,6 +218,8 @@ class AppFlowyDefaultTheme implements AppFlowyThemeBuilder {''');
       brandColorScheme: brandColorScheme,
       otherColorsColorScheme: otherColorsColorScheme,
       borderRadius: borderRadius,
+      surfaceContainerColorScheme: surfaceContainerColorScheme,
+      badgeColorScheme: badgeColorScheme,
       spacing: spacing,
       shadow: shadow,
     );

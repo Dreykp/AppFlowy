@@ -1,19 +1,24 @@
 #![allow(unused_variables)]
 
+use crate::EmbeddingWriter;
 use crate::af_cloud::define::LoggedUser;
 use crate::local_server::util::default_encode_collab_for_collab_type;
-use client_api::entity::workspace_dto::PublishInfoView;
 use client_api::entity::PublishInfo;
+use client_api::entity::workspace_dto::PublishInfoView;
 use collab::core::origin::CollabOrigin;
 use collab::preclude::Collab;
 use collab_entity::CollabType;
-use collab_plugins::local_storage::kv::doc::CollabKVAction;
 use collab_plugins::local_storage::kv::KVTransactionDB;
+use collab_plugins::local_storage::kv::doc::CollabKVAction;
 use flowy_error::FlowyError;
 use flowy_folder_pub::cloud::{
   FolderCloudService, FolderCollabParams, FolderSnapshot, FullSyncCollabParams,
 };
 use flowy_folder_pub::entities::PublishPayload;
+use flowy_server_pub::guest_dto::{
+  ListSharedViewResponse, RevokeSharedViewAccessRequest, ShareViewWithGuestRequest,
+  SharedViewDetails,
+};
 use lib_infra::async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -21,6 +26,7 @@ use uuid::Uuid;
 pub(crate) struct LocalServerFolderCloudServiceImpl {
   #[allow(dead_code)]
   pub logged_user: Arc<dyn LoggedUser>,
+  pub embedding_writer: Option<Arc<dyn EmbeddingWriter>>,
 }
 
 #[async_trait]
@@ -68,6 +74,17 @@ impl FolderCloudService for LocalServerFolderCloudServiceImpl {
     workspace_id: &Uuid,
     params: FullSyncCollabParams,
   ) -> Result<(), FlowyError> {
+    if let Some(embedding_writer) = self.embedding_writer.as_ref() {
+      embedding_writer
+        .index_encoded_collab(
+          *workspace_id,
+          params.object_id,
+          params.encoded_collab,
+          params.collab_type,
+        )
+        .await?;
+    }
+
     Ok(())
   }
 
@@ -151,6 +168,38 @@ impl FolderCloudService for LocalServerFolderCloudServiceImpl {
   }
 
   async fn import_zip(&self, _file_path: &str) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn share_page_with_user(
+    &self,
+    workspace_id: &Uuid,
+    params: ShareViewWithGuestRequest,
+  ) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn revoke_shared_page_access(
+    &self,
+    workspace_id: &Uuid,
+    view_id: &Uuid,
+    params: RevokeSharedViewAccessRequest,
+  ) -> Result<(), FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn get_shared_page_details(
+    &self,
+    workspace_id: &Uuid,
+    view_id: &Uuid,
+  ) -> Result<SharedViewDetails, FlowyError> {
+    Err(FlowyError::local_version_not_support())
+  }
+
+  async fn get_shared_views(
+    &self,
+    _workspace_id: &Uuid,
+  ) -> Result<ListSharedViewResponse, FlowyError> {
     Err(FlowyError::local_version_not_support())
   }
 }

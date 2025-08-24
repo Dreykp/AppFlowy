@@ -29,6 +29,7 @@ class AFOutlinedTextButton extends AFBaseTextButton {
     bool disabled = false,
     Alignment? alignment,
     TextStyle? textStyle,
+    AFBaseButtonColorBuilder? backgroundColor,
   }) {
     return AFOutlinedTextButton._(
       key: key,
@@ -43,23 +44,24 @@ class AFOutlinedTextButton extends AFBaseTextButton {
       borderColor: (context, isHovering, disabled, isFocused) {
         final theme = AppFlowyTheme.of(context);
         if (disabled) {
-          return theme.borderColorScheme.greyTertiary;
+          return theme.borderColorScheme.primary;
         }
         if (isHovering) {
-          return theme.borderColorScheme.greyTertiaryHover;
+          return theme.borderColorScheme.primaryHover;
         }
-        return theme.borderColorScheme.greyTertiary;
+        return theme.borderColorScheme.primary;
       },
-      backgroundColor: (context, isHovering, disabled) {
-        final theme = AppFlowyTheme.of(context);
-        if (disabled) {
-          return theme.fillColorScheme.transparent;
-        }
-        if (isHovering) {
-          return theme.fillColorScheme.primaryAlpha5;
-        }
-        return theme.fillColorScheme.transparent;
-      },
+      backgroundColor: backgroundColor ??
+          (context, isHovering, disabled) {
+            final theme = AppFlowyTheme.of(context);
+            if (disabled) {
+              return theme.fillColorScheme.content;
+            }
+            if (isHovering) {
+              return theme.fillColorScheme.contentHover;
+            }
+            return theme.fillColorScheme.content;
+          },
       textColor: (context, isHovering, disabled) {
         final theme = AppFlowyTheme.of(context);
         if (disabled) {
@@ -113,7 +115,7 @@ class AFOutlinedTextButton extends AFBaseTextButton {
         if (isHovering) {
           return theme.fillColorScheme.errorSelect;
         }
-        return theme.fillColorScheme.transparent;
+        return theme.fillColorScheme.content;
       },
       textColor: (context, isHovering, disabled) {
         final theme = AppFlowyTheme.of(context);
@@ -153,22 +155,22 @@ class AFOutlinedTextButton extends AFBaseTextButton {
       borderColor: (context, isHovering, disabled, isFocused) {
         final theme = AppFlowyTheme.of(context);
         if (disabled) {
-          return theme.borderColorScheme.greyTertiary;
+          return theme.borderColorScheme.primary;
         }
         if (isHovering) {
-          return theme.borderColorScheme.greyTertiaryHover;
+          return theme.borderColorScheme.primaryHover;
         }
-        return theme.borderColorScheme.greyTertiary;
+        return theme.borderColorScheme.primary;
       },
       backgroundColor: (context, isHovering, disabled) {
         final theme = AppFlowyTheme.of(context);
         if (disabled) {
-          return theme.fillColorScheme.transparent;
+          return theme.fillColorScheme.content;
         }
         if (isHovering) {
-          return theme.fillColorScheme.primaryAlpha5;
+          return theme.fillColorScheme.contentHover;
         }
-        return theme.fillColorScheme.transparent;
+        return theme.fillColorScheme.content;
       },
     );
   }
@@ -179,34 +181,41 @@ class AFOutlinedTextButton extends AFBaseTextButton {
   Widget build(BuildContext context) {
     final theme = AppFlowyTheme.of(context);
 
-    return AFBaseButton(
-      disabled: disabled,
-      backgroundColor: backgroundColor,
-      borderColor: borderColor,
-      padding: padding ?? size.buildPadding(context),
-      borderRadius: borderRadius ?? size.buildBorderRadius(context),
-      onTap: onTap,
-      builder: (context, isHovering, disabled) {
-        final textColor = this.textColor?.call(context, isHovering, disabled) ??
-            theme.textColorScheme.primary;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: 76,
+      ),
+      child: AFBaseButton(
+        disabled: disabled,
+        backgroundColor: backgroundColor,
+        borderColor: borderColor,
+        padding: padding ?? size.buildPadding(context),
+        borderRadius: borderRadius ?? size.buildBorderRadius(context),
+        onTap: onTap,
+        builder: (context, isHovering, disabled) {
+          final textColor =
+              this.textColor?.call(context, isHovering, disabled) ??
+                  theme.textColorScheme.primary;
 
-        Widget child = Text(
-          text,
-          style: textStyle ??
-              size.buildTextStyle(context).copyWith(color: textColor),
-        );
-
-        final alignment = this.alignment;
-
-        if (alignment != null) {
-          child = Align(
-            alignment: alignment,
-            child: child,
+          Widget child = Text(
+            text,
+            style: textStyle ??
+                size.buildTextStyle(context).copyWith(color: textColor),
+            textAlign: TextAlign.center,
           );
-        }
 
-        return child;
-      },
+          final alignment = this.alignment;
+
+          if (alignment != null) {
+            child = Align(
+              alignment: alignment,
+              child: child,
+            );
+          }
+
+          return child;
+        },
+      ),
     );
   }
 }

@@ -1,15 +1,14 @@
 import 'dart:io';
 
-import 'package:appflowy/core/helpers/url_launcher.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
 import 'package:appflowy/plugins/document/application/document_appearance_cubit.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/base/font_colors.dart';
-import 'package:appflowy/plugins/document/presentation/editor_plugins/mobile_toolbar_item/utils.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/plugins.dart';
 import 'package:appflowy/plugins/inline_actions/inline_actions_menu.dart';
 import 'package:appflowy/shared/google_fonts_extension.dart';
 import 'package:appflowy/util/font_family_extension.dart';
+import 'package:appflowy/util/string_extension.dart';
 import 'package:appflowy/util/theme_extension.dart';
 import 'package:appflowy/workspace/application/appearance_defaults.dart';
 import 'package:appflowy/workspace/application/settings/appearance/appearance_cubit.dart';
@@ -21,10 +20,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra/theme_extension.dart';
 import 'package:flowy_infra_ui/style_widget/hover.dart';
 import 'package:flowy_infra_ui/widget/flowy_tooltip.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:universal_platform/universal_platform.dart';
 
@@ -102,7 +99,9 @@ class EditorStyleCustomizer {
       defaultTextDirection: appearance.defaultTextDirection,
       textStyleConfiguration: TextStyleConfiguration(
         lineHeight: 1.4,
-        applyHeightToFirstAscent: true,
+        // on Windows, if applyHeightToFirstAscent is true, the first line will be too high.
+        // it will cause the first line not aligned with the prefix icon.
+        applyHeightToFirstAscent: UniversalPlatform.isWindows ? false : true,
         applyHeightToLastDescent: true,
         text: baseTextStyle(fontFamily).copyWith(
           fontSize: fontSize,
@@ -188,6 +187,7 @@ class EditorStyleCustomizer {
       textScaleFactor: textScaleFactor,
       mobileDragHandleLeftExtend: 12.0,
       mobileDragHandleWidthExtend: 24.0,
+      textSpanOverlayBuilder: _buildTextSpanOverlay,
     );
   }
 
@@ -201,7 +201,11 @@ class EditorStyleCustomizer {
       fontSize = state.fontLayout.fontSize;
       fontSizes = state.fontLayout.headingFontSizes;
     } else {
-      fontFamily = context.read<DocumentAppearanceCubit>().state.fontFamily;
+      fontFamily = context
+          .read<DocumentAppearanceCubit>()
+          .state
+          .fontFamily
+          .orDefault(context.read<AppearanceSettingsCubit>().state.font);
       fontSize = context.read<DocumentAppearanceCubit>().state.fontSize;
       fontSizes = [
         fontSize + 16,
@@ -316,9 +320,12 @@ class EditorStyleCustomizer {
   }
 
   TextStyle baseTextStyle(String? fontFamily, {FontWeight? fontWeight}) {
-    if (fontFamily == null || fontFamily == defaultFontFamily) {
+    if (fontFamily == null) {
       return TextStyle(fontWeight: fontWeight);
+    } else if (fontFamily == defaultFontFamily) {
+      return TextStyle(fontFamily: fontFamily, fontWeight: fontWeight);
     }
+
     try {
       return getGoogleFontSafely(fontFamily, fontWeight: fontWeight);
     } on Exception {
@@ -423,44 +430,7 @@ class EditorStyleCustomizer {
     // customize the link on mobile
     final href = attributes[AppFlowyRichTextKeys.href] as String?;
     if (UniversalPlatform.isMobile && href != null) {
-      return TextSpan(
-        style: before.style,
-        text: text.text,
-        recognizer: TapGestureRecognizer()
-          ..onTap = () {
-            final editorState = context.read<EditorState>();
-            if (editorState.selection == null) {
-              afLaunchUrlString(href, addingHttpSchemeWhenFailed: true);
-              return;
-            }
-
-            editorState.updateSelectionWithReason(
-              editorState.selection,
-              extraInfo: {selectionExtraInfoDisableMobileToolbarKey: true},
-            );
-
-            showEditLinkBottomSheet(
-              context,
-              text.text,
-              href,
-              (linkContext, newText, newHref) {
-                final selection = Selection.single(
-                  path: node.path,
-                  startOffset: index,
-                  endOffset: index + text.text.length,
-                );
-                editorState.updateTextAndHref(
-                  text.text,
-                  href,
-                  newText,
-                  newHref,
-                  selection: selection,
-                );
-                linkContext.pop();
-              },
-            );
-          },
-      );
+      return TextSpan(style: before.style, text: text.text);
     }
 
     if (suggestion != null) {
@@ -591,7 +561,6 @@ class EditorStyleCustomizer {
     Node node,
     SelectableMixin delegate,
   ) {
-    if (UniversalPlatform.isMobile) return [];
     final delta = node.delta;
     if (delta == null) return [];
     final widgets = <Widget>[];

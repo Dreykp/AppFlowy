@@ -8,6 +8,7 @@ import 'package:appflowy/workspace/application/sidebar/rename_view/rename_view_b
 import 'package:appflowy/workspace/application/tabs/tabs_bloc.dart';
 import 'package:appflowy/workspace/presentation/home/menu/sidebar/shared/sidebar_setting.dart';
 import 'package:appflowy_backend/log.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/user_profile.pb.dart';
 import 'package:flutter/material.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
@@ -18,6 +19,7 @@ typedef KeyDownHandler = void Function(HotKey hotKey);
 
 ValueNotifier<int> switchToTheNextSpace = ValueNotifier(0);
 ValueNotifier<int> createNewPageNotifier = ValueNotifier(0);
+ValueNotifier<ViewPB?> switchToSpaceNotifier = ValueNotifier(null);
 
 @visibleForTesting
 final zoomInKeyCodes = [KeyCode.equal, KeyCode.numpadAdd, KeyCode.add];
@@ -75,9 +77,7 @@ class _HomeHotKeysState extends State<HomeHotKeys> {
         modifiers: [Platform.isMacOS ? KeyModifier.meta : KeyModifier.control],
         scope: HotKeyScope.inapp,
       ),
-      keyDownHandler: (_) => context
-          .read<HomeSettingBloc>()
-          .add(const HomeSettingEvent.collapseMenu()),
+      keyDownHandler: (_) => colappsedMenus(context),
     ),
 
     // Collapse sidebar menu (using .)
@@ -87,9 +87,7 @@ class _HomeHotKeysState extends State<HomeHotKeys> {
         modifiers: [Platform.isMacOS ? KeyModifier.meta : KeyModifier.control],
         scope: HotKeyScope.inapp,
       ),
-      keyDownHandler: (_) => context
-          .read<HomeSettingBloc>()
-          .add(const HomeSettingEvent.collapseMenu()),
+      keyDownHandler: (_) => colappsedMenus(context),
     ),
 
     // Toggle theme mode light/dark
@@ -210,7 +208,7 @@ class _HomeHotKeysState extends State<HomeHotKeys> {
     ),
 
     // Open settings dialog
-    openSettingsHotKey(context, widget.userProfile),
+    openSettingsHotKey(context),
   ];
 
   @override
@@ -241,10 +239,14 @@ class _HomeHotKeysState extends State<HomeHotKeys> {
 
   Future<void> _scaleWithStep(double step) async {
     final currentScaleFactor = await windowSizeManager.getScaleFactor();
-    final textScale = (currentScaleFactor + step).clamp(
+
+    double textScale = (currentScaleFactor + step).clamp(
       WindowSizeManager.minScaleFactor,
       WindowSizeManager.maxScaleFactor,
     );
+
+    // only keep 2 decimal places
+    textScale = double.parse(textScale.toStringAsFixed(2));
 
     Log.info('scale the app from $currentScaleFactor to $textScale');
 
@@ -256,11 +258,22 @@ class _HomeHotKeysState extends State<HomeHotKeys> {
       // The integration test will fail if we check the scale factor in the test.
       // #0      ScaledWidgetsFlutterBinding.Eval ()
       // #1      ScaledWidgetsFlutterBinding.instance (package:scaled_app/scaled_app.dart:66:62)
-      appflowyScaleFactor = scaleFactor;
+      appflowyScaleFactor = double.parse(scaleFactor.toStringAsFixed(2));
     } else {
       ScaledWidgetsFlutterBinding.instance.scaleFactor = (_) => scaleFactor;
     }
 
     await windowSizeManager.setScaleFactor(scaleFactor);
+  }
+
+  void colappsedMenus(BuildContext context) {
+    final bloc = context.read<HomeSettingBloc>();
+    final isNotificationPanelCollapsed =
+        bloc.state.isNotificationPanelCollapsed;
+    if (!isNotificationPanelCollapsed) {
+      bloc.add(const HomeSettingEvent.collapseNotificationPanel());
+    } else {
+      bloc.collapseMenu();
+    }
   }
 }

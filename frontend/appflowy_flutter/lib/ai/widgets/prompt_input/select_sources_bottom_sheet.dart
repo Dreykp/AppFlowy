@@ -1,13 +1,18 @@
+import 'dart:async';
+
+import 'package:appflowy/ai/service/view_selector_cubit.dart';
+import 'package:appflowy/features/workspace/logic/workspace_bloc.dart';
 import 'package:appflowy/generated/flowy_svgs.g.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/base/flowy_search_text_field.dart';
 import 'package:appflowy/mobile/presentation/bottom_sheet/bottom_sheet.dart';
-import 'package:appflowy/plugins/ai_chat/application/chat_select_sources_cubit.dart';
 import 'package:appflowy/plugins/base/drag_handler.dart';
+import 'package:appflowy/plugins/document/application/document_bloc.dart';
 import 'package:appflowy/workspace/application/sidebar/space/space_bloc.dart';
-import 'package:appflowy/workspace/application/user/user_workspace_bloc.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy/workspace/presentation/home/menu/view/view_item.dart';
+import 'package:appflowy_backend/protobuf/flowy-folder/protobuf.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +37,18 @@ class PromptInputMobileSelectSourcesButton extends StatefulWidget {
 
 class _PromptInputMobileSelectSourcesButtonState
     extends State<PromptInputMobileSelectSourcesButton> {
-  late final cubit = ChatSettingsCubit();
+  late final cubit = ViewSelectorCubit(
+    maxSelectedParentPageCount: 3,
+    getIgnoreViewType: (item) {
+      if (item.view.isSpace) {
+        return IgnoreViewType.none;
+      }
+      if (item.view.layout != ViewLayoutPB.Document) {
+        return IgnoreViewType.hide;
+      }
+      return IgnoreViewType.none;
+    },
+  );
 
   @override
   void initState() {
@@ -52,9 +68,11 @@ class _PromptInputMobileSelectSourcesButtonState
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppFlowyTheme.of(context);
+
     return BlocBuilder<UserWorkspaceBloc, UserWorkspaceState>(
       builder: (context, state) {
-        final userProfile = context.read<UserWorkspaceBloc>().userProfile;
+        final userProfile = context.read<UserWorkspaceBloc>().state.userProfile;
         final workspaceId = state.currentWorkspace?.workspaceId ?? '';
         return MultiBlocProvider(
           providers: [
@@ -82,6 +100,26 @@ class _PromptInputMobileSelectSourcesButtonState
                       color: Theme.of(context).iconTheme.color,
                       size: const Size.square(20.0),
                     ),
+                    const HSpace(2.0),
+                    ValueListenableBuilder(
+                      valueListenable: widget.selectedSourcesNotifier,
+                      builder: (context, selectedSourceIds, _) {
+                        final documentId =
+                            context.read<DocumentBloc?>()?.documentId;
+                        final label = documentId != null &&
+                                selectedSourceIds.length == 1 &&
+                                selectedSourceIds[0] == documentId
+                            ? LocaleKeys.chat_currentPage.tr()
+                            : selectedSourceIds.length.toString();
+                        return FlowyText(
+                          label,
+                          fontSize: 14,
+                          figmaLineHeight: 20,
+                          color: Theme.of(context).hintColor,
+                        );
+                      },
+                    ),
+                    const HSpace(2.0),
                     FlowySvg(
                       FlowySvgs.ai_source_drop_down_s,
                       color: Theme.of(context).hintColor,
@@ -90,12 +128,15 @@ class _PromptInputMobileSelectSourcesButtonState
                   ],
                 ),
                 onTap: () async {
-                  context
-                      .read<ChatSettingsCubit>()
-                      .refreshSources(state.spaces, state.currentSpace);
+                  unawaited(
+                    context
+                        .read<ViewSelectorCubit>()
+                        .refreshSources(state.spaces, state.currentSpace),
+                  );
+
                   await showMobileBottomSheet<void>(
                     context,
-                    backgroundColor: Theme.of(context).colorScheme.surface,
+                    backgroundColor: theme.surfaceColorScheme.primary,
                     maxChildSize: 0.98,
                     enableDraggableScrollable: true,
                     scrollableWidgetBuilder: (_, scrollController) {
@@ -129,7 +170,7 @@ class _PromptInputMobileSelectSourcesButtonState
   }
 }
 
-class _MobileSelectSourcesSheetBody extends StatefulWidget {
+class _MobileSelectSourcesSheetBody extends StatelessWidget {
   const _MobileSelectSourcesSheetBody({
     required this.scrollController,
   });
@@ -137,31 +178,16 @@ class _MobileSelectSourcesSheetBody extends StatefulWidget {
   final ScrollController scrollController;
 
   @override
-  State<_MobileSelectSourcesSheetBody> createState() =>
-      _MobileSelectSourcesSheetBodyState();
-}
-
-class _MobileSelectSourcesSheetBodyState
-    extends State<_MobileSelectSourcesSheetBody> {
-  final textController = TextEditingController();
-
-  @override
-  void dispose() {
-    textController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return CustomScrollView(
-      controller: widget.scrollController,
+      controller: scrollController,
       shrinkWrap: true,
       slivers: [
         SliverPersistentHeader(
           pinned: true,
           delegate: _Header(
             child: ColoredBox(
-              color: Theme.of(context).cardColor,
+              color: AppFlowyTheme.of(context).surfaceColorScheme.primary,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -183,10 +209,9 @@ class _MobileSelectSourcesSheetBodyState
                     child: SizedBox(
                       height: 44.0,
                       child: FlowySearchTextField(
-                        controller: textController,
-                        onChanged: (value) => context
-                            .read<ChatSettingsCubit>()
-                            .updateFilter(value),
+                        controller: context
+                            .read<ViewSelectorCubit>()
+                            .filterTextController,
                       ),
                     ),
                   ),
@@ -196,27 +221,67 @@ class _MobileSelectSourcesSheetBodyState
             ),
           ),
         ),
-        BlocBuilder<ChatSettingsCubit, ChatSettingsState>(
+        BlocBuilder<ViewSelectorCubit, ViewSelectorState>(
           builder: (context, state) {
-            final sources = state.visibleSources
-                .where((e) => e.ignoreStatus != IgnoreViewType.hide);
             return SliverList(
               delegate: SliverChildBuilderDelegate(
-                childCount: sources.length,
+                childCount: state.selectedSources.length,
                 (context, index) {
-                  final source = sources.elementAt(index);
-                  return ChatSourceTreeItem(
+                  final source = state.selectedSources.elementAt(index);
+                  return ViewSelectorTreeItem(
+                    key: ValueKey(
+                      'selected_select_sources_tree_item_${source.view.id}',
+                    ),
+                    viewSelectorItem: source,
+                    level: 0,
+                    isDescendentOfSpace: source.view.isSpace,
+                    isSelectedSection: true,
+                    onSelected: (item) {
+                      context
+                          .read<ViewSelectorCubit>()
+                          .toggleSelectedStatus(item, true);
+                    },
+                    height: 40.0,
+                  );
+                },
+              ),
+            );
+          },
+        ),
+        BlocBuilder<ViewSelectorCubit, ViewSelectorState>(
+          builder: (context, state) {
+            if (state.selectedSources.isNotEmpty &&
+                state.visibleSources.isNotEmpty) {
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: AFDivider(),
+                ),
+              );
+            }
+
+            return const SliverToBoxAdapter();
+          },
+        ),
+        BlocBuilder<ViewSelectorCubit, ViewSelectorState>(
+          builder: (context, state) {
+            return SliverList(
+              delegate: SliverChildBuilderDelegate(
+                childCount: state.visibleSources.length,
+                (context, index) {
+                  final source = state.visibleSources.elementAt(index);
+                  return ViewSelectorTreeItem(
                     key: ValueKey(
                       'visible_select_sources_tree_item_${source.view.id}',
                     ),
-                    chatSource: source,
+                    viewSelectorItem: source,
                     level: 0,
                     isDescendentOfSpace: source.view.isSpace,
                     isSelectedSection: false,
-                    onSelected: (chatSource) {
+                    onSelected: (item) {
                       context
-                          .read<ChatSettingsCubit>()
-                          .toggleSelectedStatus(chatSource);
+                          .read<ViewSelectorCubit>()
+                          .toggleSelectedStatus(item, false);
                     },
                     height: 40.0,
                   );

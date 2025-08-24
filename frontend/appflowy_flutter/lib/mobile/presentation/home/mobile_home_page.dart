@@ -1,11 +1,14 @@
+import 'package:appflowy/features/workspace/data/repositories/rust_workspace_repository_impl.dart';
 import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/presentation/home/mobile_home_page_header.dart';
 import 'package:appflowy/mobile/presentation/home/tab/mobile_space_tab.dart';
 import 'package:appflowy/mobile/presentation/home/tab/space_order_bloc.dart';
+import 'package:appflowy/shared/feature_flags.dart';
 import 'package:appflowy/shared/loading.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/user/application/auth/auth_service.dart';
 import 'package:appflowy/user/application/reminder/reminder_bloc.dart';
+import 'package:appflowy/workspace/application/command_palette/command_palette_bloc.dart';
 import 'package:appflowy/workspace/application/favorite/favorite_bloc.dart';
 import 'package:appflowy/workspace/application/menu/sidebar_sections_bloc.dart';
 import 'package:appflowy/workspace/application/recent/cached_recent_service.dart';
@@ -25,7 +28,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
-import 'package:sentry/sentry.dart';
 
 class MobileHomeScreen extends StatelessWidget {
   const MobileHomeScreen({super.key});
@@ -62,14 +64,6 @@ class MobileHomeScreen extends StatelessWidget {
         if (workspaceLatest == null || userProfile == null) {
           return const WorkspaceFailedScreen();
         }
-
-        Sentry.configureScope(
-          (scope) => scope.setUser(
-            SentryUser(
-              id: userProfile.id.toString(),
-            ),
-          ),
-        );
 
         return Scaffold(
           body: SafeArea(
@@ -128,8 +122,12 @@ class _MobileHomePageState extends State<MobileHomePage> {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => UserWorkspaceBloc(userProfile: widget.userProfile)
-            ..add(const UserWorkspaceEvent.initial()),
+          create: (_) => UserWorkspaceBloc(
+            userProfile: widget.userProfile,
+            repository: RustWorkspaceRepositoryImpl(
+              userId: widget.userProfile.id,
+            ),
+          )..add(UserWorkspaceEvent.initialize()),
         ),
         BlocProvider(
           create: (context) =>
@@ -145,7 +143,7 @@ class _MobileHomePageState extends State<MobileHomePage> {
 
   void _onLatestViewChange() async {
     final id = getIt<MenuSharedState>().latestOpenView?.id;
-    if (id == null) {
+    if (id == null || id.isEmpty) {
       return;
     }
     await FolderEventSetLatestView(ViewIdPB(value: id)).send();
@@ -173,7 +171,14 @@ class _HomePageState extends State<_HomePage> {
       listener: (context, state) {
         getIt<CachedRecentService>().reset();
         mCurrentWorkspace.value = state.currentWorkspace;
-
+        if (FeatureFlag.search.isOn) {
+          // Notify command palette that workspace has changed
+          context.read<CommandPaletteBloc>().add(
+                CommandPaletteEvent.workspaceChanged(
+                  workspaceId: state.currentWorkspace?.workspaceId,
+                ),
+              );
+        }
         Debounce.debounce(
           'workspace_action_result',
           const Duration(milliseconds: 150),
@@ -234,7 +239,7 @@ class _HomePageState extends State<_HomePage> {
                       ),
                   ),
                 ],
-                child: MobileSpaceTab(
+                child: MobileHomePageTab(
                   userProfile: widget.userProfile,
                 ),
               ),
@@ -278,13 +283,13 @@ class _HomePageState extends State<_HomePage> {
     final String? message;
     ToastificationType toastType = ToastificationType.success;
     switch (actionType) {
-      case UserWorkspaceActionType.open:
+      case WorkspaceActionType.open:
         message = result.onFailure((e) {
           toastType = ToastificationType.error;
           return '${LocaleKeys.workspace_openFailed.tr()}: ${e.msg}';
         });
         break;
-      case UserWorkspaceActionType.delete:
+      case WorkspaceActionType.delete:
         message = result.fold(
           (s) {
             toastType = ToastificationType.success;
@@ -296,7 +301,7 @@ class _HomePageState extends State<_HomePage> {
           },
         );
         break;
-      case UserWorkspaceActionType.leave:
+      case WorkspaceActionType.leave:
         message = result.fold(
           (s) {
             toastType = ToastificationType.success;
@@ -310,7 +315,7 @@ class _HomePageState extends State<_HomePage> {
           },
         );
         break;
-      case UserWorkspaceActionType.rename:
+      case WorkspaceActionType.rename:
         message = result.fold(
           (s) {
             toastType = ToastificationType.success;

@@ -3,18 +3,21 @@ import 'package:appflowy/generated/locale_keys.g.dart';
 import 'package:appflowy/mobile/application/notification/notification_reminder_bloc.dart';
 import 'package:appflowy/mobile/application/page_style/document_page_style_bloc.dart';
 import 'package:appflowy/mobile/presentation/notifications/widgets/color.dart';
+import 'package:appflowy/plugins/document/application/document_appearance_cubit.dart';
 import 'package:appflowy/plugins/document/presentation/editor_configuration.dart';
 import 'package:appflowy/plugins/document/presentation/editor_style.dart';
 import 'package:appflowy/user/application/reminder/reminder_extension.dart';
+import 'package:appflowy/util/string_extension.dart';
+import 'package:appflowy/workspace/application/settings/appearance/appearance_cubit.dart';
 import 'package:appflowy/workspace/application/view/view_ext.dart';
 import 'package:appflowy_backend/protobuf/flowy-folder/view.pb.dart';
 import 'package:appflowy_backend/protobuf/flowy-user/protobuf.dart';
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy_ui/appflowy_ui.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flowy_infra_ui/flowy_infra_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:universal_platform/universal_platform.dart';
 
 const _kNotificationIconHeight = 36.0;
 
@@ -22,16 +25,45 @@ class NotificationIcon extends StatelessWidget {
   const NotificationIcon({
     super.key,
     required this.reminder,
+    this.atSize = 12,
   });
 
   final ReminderPB reminder;
+  final double atSize;
 
   @override
   Widget build(BuildContext context) {
-    return const FlowySvg(
-      FlowySvgs.m_notification_reminder_s,
-      size: Size.square(_kNotificationIconHeight),
-      blendMode: null,
+    final theme = AppFlowyTheme.of(context);
+    return SizedBox(
+      width: 42,
+      height: 36,
+      child: Stack(
+        children: [
+          const FlowySvg(
+            FlowySvgs.m_notification_reminder_s,
+            size: Size.square(32),
+            blendMode: null,
+          ),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.fillColorScheme.primary,
+              ),
+              child: Center(
+                child: FlowySvg(
+                  FlowySvgs.notification_icon_at_s,
+                  size: Size.square(atSize),
+                  color: theme.iconColorScheme.primary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -62,14 +94,15 @@ class UnreadRedDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    final theme = AppFlowyTheme.of(context);
+    return SizedBox(
       height: _kNotificationIconHeight,
       child: Center(
         child: SizedBox.square(
-          dimension: 6.0,
+          dimension: 7.0,
           child: DecoratedBox(
             decoration: ShapeDecoration(
-              color: Color(0xFFFF6331),
+              color: theme.borderColorScheme.errorThick,
               shape: OvalBorder(),
             ),
           ),
@@ -92,6 +125,8 @@ class NotificationContent extends StatefulWidget {
 }
 
 class _NotificationContentState extends State<NotificationContent> {
+  AppFlowyThemeData get theme => AppFlowyTheme.of(context);
+
   @override
   void didUpdateWidget(covariant NotificationContent oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -114,21 +149,12 @@ class _NotificationContentState extends State<NotificationContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // title
-            _buildHeader(),
-
-            // time & page name
-            _buildTimeAndPageName(
-              context,
-              state.createdAt,
-              state.pageTitle,
-            ),
-
+            // title & time
+            _buildHeader(state.scheduledAt, !widget.reminder.isRead),
+            // page name
+            _buildPageName(context, state.isLocked, state.pageTitle),
             // content
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: _buildContent(view, nodes: state.nodes),
-            ),
+            _buildContent(view, nodes: state.nodes),
           ],
         );
       },
@@ -155,6 +181,8 @@ class _NotificationContentState extends State<NotificationContent> {
           fontSize: 14,
           figmaLineHeight: 22,
           color: context.notificationItemTextColor,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
         ),
       );
     }
@@ -162,40 +190,72 @@ class _NotificationContentState extends State<NotificationContent> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildHeader() {
-    return FlowyText.semibold(
-      LocaleKeys.settings_notifications_titles_reminder.tr(),
-      fontSize: 14,
-      figmaLineHeight: 20,
+  Widget _buildHeader(String createAt, bool unread) {
+    return SizedBox(
+      height: 22,
+      child: Row(
+        children: [
+          FlowyText.semibold(
+            LocaleKeys.settings_notifications_titles_reminder.tr(),
+            fontSize: 14,
+            figmaLineHeight: 20,
+            color: theme.textColorScheme.primary,
+          ),
+          Spacer(),
+          if (createAt.isNotEmpty)
+            FlowyText.regular(
+              createAt,
+              fontSize: 12,
+              figmaLineHeight: 18,
+              color: theme.textColorScheme.secondary,
+            ),
+          if (unread) ...[
+            HSpace(4),
+            const UnreadRedDot(),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _buildTimeAndPageName(
+  Widget _buildPageName(
     BuildContext context,
-    String createdAt,
+    bool isLocked,
     String pageTitle,
   ) {
     return Opacity(
       opacity: 0.5,
-      child: Row(
-        children: [
-          // the legacy reminder doesn't contain the timestamp, so we don't show it
-          if (createdAt.isNotEmpty) ...[
+      child: SizedBox(
+        height: 18,
+        child: Row(
+          children: [
+            /// TODO: need to be replaced after reminder support more types
             FlowyText.regular(
-              createdAt,
+              LocaleKeys.notificationHub_mentionedYou.tr(),
               fontSize: 12,
               figmaLineHeight: 18,
-              color: context.notificationItemTextColor,
+              color: theme.textColorScheme.secondary,
             ),
             const NotificationEllipse(),
+            if (isLocked)
+              Padding(
+                padding: EdgeInsets.only(right: 5),
+                child: FlowySvg(
+                  FlowySvgs.notification_lock_s,
+                  color: theme.iconColorScheme.secondary,
+                ),
+              ),
+            Flexible(
+              child: FlowyText.regular(
+                pageTitle,
+                fontSize: 12,
+                figmaLineHeight: 18,
+                color: theme.textColorScheme.secondary,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
-          FlowyText.regular(
-            pageTitle,
-            fontSize: 12,
-            figmaLineHeight: 18,
-            color: context.notificationItemTextColor,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -209,7 +269,7 @@ class NotificationEllipse extends StatelessWidget {
     return Container(
       width: 2.50,
       height: 2.50,
-      margin: const EdgeInsets.symmetric(horizontal: 5.0),
+      margin: const EdgeInsets.symmetric(horizontal: 6.0),
       decoration: ShapeDecoration(
         color: context.notificationItemTextColor,
         shape: const OvalBorder(),
@@ -265,12 +325,27 @@ class NotificationDocumentContent extends StatelessWidget {
       styleCustomizer: styleCustomizer,
       // the editor is not editable in the chat
       editable: false,
-      customHeadingPadding: UniversalPlatform.isDesktop
-          ? EdgeInsets.zero
-          : EdgeInsets.symmetric(
-              vertical: EditorStyleCustomizer.nodeHorizontalPadding,
-            ),
+      customPadding: (node) => EdgeInsets.zero,
     );
+
+    final headingBuilder = blockBuilders[HeadingBlockKeys.type];
+    if (headingBuilder != null &&
+        headingBuilder is HeadingBlockComponentBuilder) {
+      final newHeadingBuilder = HeadingBlockComponentBuilder(
+        configuration: headingBuilder.configuration,
+        textStyleBuilder: (v) {
+          final fontFamily = context
+              .read<DocumentAppearanceCubit>()
+              .state
+              .fontFamily
+              .orDefault(
+                context.read<AppearanceSettingsCubit>().state.font,
+              );
+          return styleCustomizer.baseTextStyle(fontFamily);
+        },
+      );
+      blockBuilders[HeadingBlockKeys.type] = newHeadingBuilder;
+    }
 
     return IgnorePointer(
       child: Opacity(

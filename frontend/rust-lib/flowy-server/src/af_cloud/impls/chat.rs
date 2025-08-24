@@ -8,8 +8,8 @@ use client_api::entity::chat_dto::{
   RepeatedChatMessage,
 };
 use flowy_ai_pub::cloud::{
-  AIModel, ChatCloudService, ChatMessage, ChatMessageType, ChatSettings, ModelList, StreamAnswer,
-  StreamComplete, UpdateChatParams,
+  AFWorkspaceSettingsChange, AIModel, ChatCloudService, ChatMessage, ChatMessageType, ChatSettings,
+  ModelList, StreamAnswer, StreamComplete, UpdateChatParams,
 };
 use flowy_error::FlowyError;
 use futures_util::{StreamExt, TryStreamExt};
@@ -59,12 +59,14 @@ where
     chat_id: &Uuid,
     message: &str,
     message_type: ChatMessageType,
+    prompt_id: Option<String>,
   ) -> Result<ChatMessage, FlowyError> {
     let chat_id = chat_id.to_string();
     let try_get_client = self.inner.try_get_client();
     let params = CreateChatMessageParams {
       content: message.to_string(),
       message_type,
+      prompt_id,
     };
 
     let message = try_get_client?
@@ -99,16 +101,13 @@ where
     &self,
     workspace_id: &Uuid,
     chat_id: &Uuid,
-    message_id: i64,
+    question_id: i64,
     format: ResponseFormat,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamAnswer, FlowyError> {
     trace!(
       "stream_answer: workspace_id={}, chat_id={}, format={:?}, model: {:?}",
-      workspace_id,
-      chat_id,
-      format,
-      ai_model,
+      workspace_id, chat_id, format, ai_model,
     );
     let try_get_client = self.inner.try_get_client();
     let result = try_get_client?
@@ -116,10 +115,10 @@ where
         workspace_id,
         ChatQuestionQuery {
           chat_id: chat_id.to_string(),
-          question_id: message_id,
+          question_id,
           format,
         },
-        ai_model.map(|v| v.name),
+        Some(ai_model.name),
       )
       .await;
 
@@ -182,7 +181,7 @@ where
     workspace_id: &Uuid,
     chat_id: &Uuid,
     message_id: i64,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<RepeatedRelatedQuestion, FlowyError> {
     let try_get_client = self.inner.try_get_client();
     let resp = try_get_client?
@@ -197,12 +196,12 @@ where
     &self,
     workspace_id: &Uuid,
     params: CompleteTextParams,
-    ai_model: Option<AIModel>,
+    ai_model: AIModel,
   ) -> Result<StreamComplete, FlowyError> {
     let stream = self
       .inner
       .try_get_client()?
-      .stream_completion_v2(workspace_id, params, ai_model.map(|v| v.name))
+      .stream_completion_v2(workspace_id, params, Some(ai_model.name))
       .await
       .map_err(FlowyError::from)?
       .map_err(FlowyError::from);
@@ -266,5 +265,19 @@ where
       .get_workspace_settings(workspace_id.to_string().as_str())
       .await?;
     Ok(setting.ai_model)
+  }
+
+  async fn set_workspace_default_model(
+    &self,
+    workspace_id: &Uuid,
+    model: &str,
+  ) -> Result<(), FlowyError> {
+    let change = AFWorkspaceSettingsChange::new().ai_model(model.to_string());
+    let setting = self
+      .inner
+      .try_get_client()?
+      .update_workspace_settings(workspace_id.to_string().as_str(), &change)
+      .await?;
+    Ok(())
   }
 }

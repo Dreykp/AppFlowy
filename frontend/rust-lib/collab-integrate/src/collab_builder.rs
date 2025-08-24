@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display};
 use std::sync::{Arc, Weak};
 
 use crate::CollabKVDB;
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use arc_swap::{ArcSwap, ArcSwapOption};
 use collab::core::collab::DataSource;
 use collab::core::collab_plugin::CollabPersistence;
@@ -28,11 +28,12 @@ use collab_plugins::local_storage::indexeddb::IndexeddbDiskPlugin;
 
 pub use crate::plugin_provider::CollabCloudPluginProvider;
 use collab::lock::RwLock;
-use collab_plugins::local_storage::kv::doc::CollabKVAction;
-use collab_plugins::local_storage::kv::KVTransactionDB;
 use collab_plugins::local_storage::CollabPersistenceConfig;
+use collab_plugins::local_storage::kv::KVTransactionDB;
+use collab_plugins::local_storage::kv::doc::CollabKVAction;
 use collab_user::core::{UserAwareness, UserAwarenessNotifier};
 
+use crate::instant_indexed_data_provider::InstantIndexedDataWriter;
 use flowy_error::FlowyError;
 use lib_infra::{if_native, if_wasm};
 use tracing::{error, instrument, trace, warn};
@@ -79,14 +80,17 @@ pub struct AppFlowyCollabBuilder {
   #[cfg(not(target_arch = "wasm32"))]
   rocksdb_backup: ArcSwapOption<Arc<dyn RocksdbBackup>>,
   workspace_integrate: Arc<dyn WorkspaceCollabIntegrate>,
+  embeddings_writer: Option<Weak<InstantIndexedDataWriter>>,
 }
 
 impl AppFlowyCollabBuilder {
   pub fn new(
     storage_provider: impl CollabCloudPluginProvider + 'static,
     workspace_integrate: impl WorkspaceCollabIntegrate + 'static,
+    embeddings_writer: Option<Weak<InstantIndexedDataWriter>>,
   ) -> Self {
     Self {
+      embeddings_writer,
       network_reachability: CollabConnectReachability::new(),
       plugin_provider: ArcSwap::new(Arc::new(Arc::new(storage_provider))),
       snapshot_persistence: Default::default(),
@@ -306,6 +310,17 @@ impl AppFlowyCollabBuilder {
   where
     T: BorrowMut<Collab> + Send + Sync + 'static,
   {
+    let cloned_object = object.clone();
+    let weak_collab = Arc::downgrade(&collab);
+    let weak_embedding_writer = self.embeddings_writer.clone();
+    tokio::spawn(async move {
+      if let Some(embedding_writer) = weak_embedding_writer.and_then(|w| w.upgrade()) {
+        embedding_writer
+          .queue_collab_embed(cloned_object, weak_collab)
+          .await;
+      }
+    });
+
     let mut write_collab = collab.try_write()?;
     let has_cloud_plugin = write_collab.borrow().has_cloud_plugin();
     if has_cloud_plugin {
@@ -361,9 +376,7 @@ impl AppFlowyCollabBuilder {
       let write_txn = collab_db.write_txn();
       trace!(
         "flush workspace: {} {}:collab:{} to disk",
-        workspace_id,
-        collab_type,
-        object_id
+        workspace_id, collab_type, object_id
       );
       let collab: &Collab = collab.borrow();
       let encode_collab =
@@ -438,9 +451,7 @@ impl CollabPersistence for CollabPersistenceImpl {
         Ok(update_count) => {
           trace!(
             "did load collab:{}-{} from disk, update_count:{}",
-            self.uid,
-            object_id,
-            update_count
+            self.uid, object_id, update_count
           );
         },
         Err(err) => {

@@ -1,11 +1,14 @@
+import 'package:appflowy/ai/service/appflowy_ai_service.dart';
 import 'package:appflowy/core/config/kv.dart';
 import 'package:appflowy/core/network_monitor.dart';
 import 'package:appflowy/env/cloud_env.dart';
+import 'package:appflowy/mobile/presentation/search/view_ancestor_cache.dart';
 import 'package:appflowy/plugins/document/application/prelude.dart';
 import 'package:appflowy/plugins/document/presentation/editor_plugins/copy_and_paste/clipboard_service.dart';
 import 'package:appflowy/plugins/trash/application/prelude.dart';
 import 'package:appflowy/shared/appflowy_cache_manager.dart';
 import 'package:appflowy/shared/custom_image_cache_manager.dart';
+import 'package:appflowy/shared/easy_localiation_service.dart';
 import 'package:appflowy/startup/startup.dart';
 import 'package:appflowy/startup/tasks/appflowy_cloud_task.dart';
 import 'package:appflowy/user/application/auth/af_cloud_auth_service.dart';
@@ -59,6 +62,7 @@ Future<void> _resolveCloudDeps(GetIt getIt) async {
   final env = await AppFlowyCloudSharedEnv.fromEnv();
   Log.info("cloud setting: $env");
   getIt.registerFactory<AppFlowyCloudSharedEnv>(() => env);
+  getIt.registerFactory<AIRepository>(() => AppFlowyAIService());
 
   if (isAppFlowyCloudEnabled) {
     getIt.registerSingleton(
@@ -95,6 +99,8 @@ void _resolveCommonService(
       ..registerCache(CustomImageCacheManager())
       ..registerCache(FeatureFlagCache()),
   );
+
+  getIt.registerSingleton<EasyLocalizationService>(EasyLocalizationService());
 }
 
 void _resolveUserDeps(GetIt getIt, IntegrationMode mode) {
@@ -127,6 +133,7 @@ void _resolveUserDeps(GetIt getIt, IntegrationMode mode) {
   getIt.registerFactory<SplashBloc>(() => SplashBloc());
   getIt.registerLazySingleton<NetworkListener>(() => NetworkListener());
   getIt.registerLazySingleton<CachedRecentService>(() => CachedRecentService());
+  getIt.registerLazySingleton<ViewAncestorCache>(() => ViewAncestorCache());
   getIt.registerLazySingleton<SubscriptionSuccessListenable>(
     () => SubscriptionSuccessListenable(),
   );

@@ -1,4 +1,93 @@
 # Release Notes
+## Version 0.9.4 – 02/07/2025
+### Desktop
+#### New Features
+- Private page sharing: Add members to private pages with Can View or Can Edit permissions
+- Guest editor collaboration: Invite non-members (guest editors) to collaborate in real-time on your pages
+- Shared with me: Browse all pages shared with you under the new Shared with me section
+- New syncing protocol: Optimized for faster, more reliable multi-user and multi-device data sync
+### Mobile
+#### New Features
+- Shared page collaboration: View and edit pages that have been shared with you on iOS and Android
+- New syncing protocol: Optimized for faster, more reliable multi-user and multi-device data sync
+
+## Version 0.9.3 - 28/05/2025
+### Desktop
+#### New Features
+- Meet AppFlowy Workspace AI Search: Quickly find pages by searching titles, keywords, or asking natural-language questions
+- AI Overviews: Ask natural questions and receive instant AI-generated summaries with source links, inspired by Google's AI Overviews
+- Revamped Search Panel: A cleaner, smarter interface to help you search faster and more effectively
+- Custom Prompts: Load a database page as the source for your own custom AI prompts
+#### Bug Fixes
+- Fixed misalignment in database view after setting maxDocumentWidth
+- Centered embedded link when the site name is empty
+- Fixed issue where row observer was not clearing as expected
+- Fixed issue where workspace name reverted after being updated
+- Aligned checkbox icon with the first line of text
+### Mobile
+#### New Features
+- Meet AppFlowy Workspace AI Search: Quickly find pages by searching titles, keywords, or asking natural-language questions
+- AI Overviews: Ask natural questions and receive instant AI-generated summaries with source links, inspired by Google's AI Overviews
+- Revamped Search Tab: A redesigned interface that helps you find what you need more efficiently
+#### Bug Fixes
+- Fixed issue where font size reset after restarting the app
+
+## Version 0.9.2 - 14/05/2025
+### Desktop
+#### New Features
+- Supported AI Overview in Search to answer user queries based on their entire workspace
+- Revamped the Search panel in the desktop app
+- Enabled loading custom prompts from an AppFlowy database page
+#### Bug Fixes
+- Improved inserting emojis using the colon (:)
+- Supported automatically filling the link name with the URL if the name is left empty
+### Mobile
+#### Bug Fixes
+- Supported automatically filling the link name with the URL if the name is left empty
+
+## Version 0.9.1 - 01/05/2025
+### Desktop
+#### New Features
+- Added AppFlowy Prompt Library to AI Chat and Document's Ask AI
+- Revamped the desktop in-app notification center
+- Supported login with password, as well as forgot and change password options
+- Supported copying link to invite members
+- Improved the Settings' Members tab with new metadata: member avatar and joined time
+#### Bug Fixes
+- Fixed data loss when using anonymous local
+- Fixed crash when trying to delete an emoji
+- Fixed Windows scaling issue
+- Correctly displayed mention text by decoding web content
+### Mobile
+#### New Features
+- Supported workspace search
+- Improved UX for links in documents
+- Supported changing password in Mobile Settings
+- Added support for inviting members via links
+#### Bug Fixes
+- Correctly displayed mention text by decoding web content
+
+## Version 0.9.0 - 30/04/2025
+### Desktop
+#### New Features
+- Added AppFlowy Prompt Library to AI Chat and Document's Ask AI
+- Revamped the desktop in-app notification center
+- Supported login with password, as well as forgot and change password options
+- Supported copying link to invite members
+- Improved the Settings' Members tab with new metadata: member avatar and joined time
+#### Bug Fixes
+- Fixed crash when trying to delete an emoji
+- Fixed Windows scaling issue
+- Correctly displayed mention text by decoding web content
+### Mobile
+#### New Features
+- Supported workspace search
+- Improved UX for links in documents
+- Supported changing password in Mobile Settings
+- Added support for inviting members via links
+#### Bug Fixes
+- Correctly displayed mention text by decoding web content
+
 ## Version 0.8.9 - 16/04/2025
 ### Desktop
 #### New Features
@@ -158,7 +247,7 @@
 - Fixed an error when opening files in the database in local mode
 - Fixed arrow up/down navigation not working for selecting a language in Code Block
 - Fixed an issue where deleting multiple blocks using the drag button on the document page didn’t work
-  
+
 ## Version 0.7.7 - 09/12/2024
 ### Bug Fixes
 - Fixed sidebar menu resize regression
